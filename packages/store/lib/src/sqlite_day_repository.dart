@@ -440,4 +440,15 @@ class SqliteDayRepository implements DayRepository {
 
   static HabitPolarity _parsePolarity(String s) => HabitPolarity.values
       .firstWhere((v) => v.name == s, orElse: () => HabitPolarity.good);
+
+  @override
+  DaySnapshot snapshot() => DaySnapshot(
+        profiles: profiles(),
+        activeProfileId: _activeId,
+        tasks: tasks(),
+        completions: completions(),
+        logs: logs(),
+        habits: habits(),
+        habitEvents: habitEvents(),
+      );
 }

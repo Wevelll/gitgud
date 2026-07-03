@@ -13,3 +13,4 @@ export 'src/models/habit.dart';
 export 'src/models/time_log.dart';
 export 'src/stats/plan_vs_actual.dart';
 export 'src/repository/day_repository.dart';
+export 'src/repository/day_snapshot.dart';

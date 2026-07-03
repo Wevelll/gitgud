@@ -9,3 +9,4 @@ export 'src/tools.dart';
 export 'src/protocol/mcp_server.dart';
 export 'src/transport/stdio_transport.dart';
 export 'src/transport/http_transport.dart';
+export 'src/transport/data_api_server.dart';

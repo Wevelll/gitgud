@@ -6,6 +6,7 @@ import '../models/ring_edit.dart';
 import '../models/segment.dart';
 import '../models/time_log.dart';
 import '../time/civil_date.dart';
+import 'day_snapshot.dart';
 
 /// State access + mutation for a single user's day, expressed in `core` types.
 ///
@@ -83,6 +84,9 @@ abstract interface class DayRepository {
   /// Removes the most recent occurrence of [habitId] on [date], if any. Returns
   /// whether one was removed (so a count can't go below zero).
   bool decrementHabit(String habitId, CivilDate date);
+
+  /// A full, serializable snapshot of current state — the sync/export unit.
+  DaySnapshot snapshot();
 }
 
 /// In-memory [DayRepository]. Platform-agnostic (no I/O), and deterministic
@@ -102,6 +106,27 @@ class InMemoryDayRepository implements DayRepository {
     if (profiles.isEmpty) {
       throw ArgumentError('At least one profile is required');
     }
+  }
+
+  /// Rebuilds an in-memory repository from a [DaySnapshot] (e.g. hydrated from
+  /// the desktop hub over HTTP).
+  factory InMemoryDayRepository.fromSnapshot(
+    DaySnapshot snapshot, {
+    String Function()? idFactory,
+    DateTime Function()? clock,
+  }) {
+    final repo = InMemoryDayRepository(
+      profiles: snapshot.profiles,
+      activeProfileId: snapshot.activeProfileId,
+      idFactory: idFactory,
+      clock: clock,
+    );
+    repo._tasks.addAll(snapshot.tasks);
+    repo._completions.addAll(snapshot.completions);
+    repo._logs.addAll(snapshot.logs);
+    repo._habits.addAll(snapshot.habits);
+    repo._habitEvents.addAll(snapshot.habitEvents);
+    return repo;
   }
 
   final Map<String, DayProfile> _profiles;
@@ -299,4 +324,15 @@ class InMemoryDayRepository implements DayRepository {
     }
     return false;
   }
+
+  @override
+  DaySnapshot snapshot() => DaySnapshot(
+        profiles: profiles(),
+        activeProfileId: _activeId,
+        tasks: tasks(),
+        completions: completions(),
+        logs: logs(),
+        habits: habits(),
+        habitEvents: habitEvents(),
+      );
 }

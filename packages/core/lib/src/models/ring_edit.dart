@@ -15,8 +15,8 @@ import 'segment.dart';
 /// - [addBlock] overwrites the arc it covers, trimming/splitting whatever was
 ///   underneath. No gap is created.
 /// - [deleteBlock] hands the removed span to its clockwise-preceding neighbor.
-/// - [updateBlock] renames/recolors in place, or (when start/end change) vacates
-///   the old span to the neighbor and repaints the new arc, keeping the id.
+/// - [updateBlock] renames/recolors in place, or (when start/end change) moves
+///   the block's edges by adjusting the shared boundary with each neighbor.
 ///
 /// Any edit that would leave a segment shorter than [minSegmentMinutes], or
 /// collapse the day to a single segment, throws [InvalidProfileException].

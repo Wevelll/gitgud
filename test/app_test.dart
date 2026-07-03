@@ -43,6 +43,48 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets('add-task dialog creates a persisted task', (tester) async {
+    final repo = testRepository();
+    await tester.pumpWidget(DayDialApp(repository: repo));
+    await tester.pump();
+    final before = repo.tasks().length;
+
+    await tester.ensureVisible(find.byKey(const Key('add-task')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('add-task')));
+    await tester.pump(const Duration(milliseconds: 300)); // dialog opens
+
+    await tester.enterText(find.byType(TextField).first, 'Meditate');
+    await tester.tap(find.text('Add'));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(repo.tasks().length, before + 1);
+    expect(repo.tasks().any((t) => t.label == 'Meditate'), isTrue);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('selecting a wedge then deleting removes it', (tester) async {
+    final repo = testRepository();
+    await tester.pumpWidget(DayDialApp(repository: repo));
+    await tester.pump();
+    final before = repo.activeProfile().segments.length;
+
+    // Tap the dial to select a wedge (compass mode; any on-ring point works).
+    final dialCenter = tester.getCenter(find.byType(DialView));
+    await tester.tapAt(dialCenter + const Offset(90, 0));
+    await tester.pump();
+
+    await tester.ensureVisible(find.byTooltip('Delete'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Delete'));
+    await tester.pump();
+
+    expect(repo.activeProfile().segments.length, before - 1);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('incrementing a habit persists an event', (tester) async {
     final repo = testRepository();
     await tester.pumpWidget(DayDialApp(repository: repo));

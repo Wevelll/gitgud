@@ -9,15 +9,43 @@ class ToolSpec {
   const ToolSpec({
     required this.name,
     required this.description,
+    this.inputSchema = _emptyObjectSchema,
     this.mutates = false,
     this.destructive = false,
   });
 
   final String name;
   final String description;
+
+  /// JSON Schema for the tool's arguments, surfaced via MCP `tools/list`.
+  final Map<String, Object?> inputSchema;
   final bool mutates;
   final bool destructive;
+
+  static const Map<String, Object?> _emptyObjectSchema = {
+    'type': 'object',
+    'properties': <String, Object?>{},
+  };
 }
+
+/// Builds an object JSON Schema. Kept terse — MCP clients only need enough to
+/// prompt/validate arguments.
+Map<String, Object?> _schema(
+  Map<String, Object?> properties, {
+  List<String> required = const [],
+}) =>
+    {
+      'type': 'object',
+      'properties': properties,
+      if (required.isNotEmpty) 'required': required,
+    };
+
+const _timeArg = {
+  'type': 'string',
+  'description': 'Time as "HH:MM" or minutes-since-midnight',
+};
+const _dateArg = {'type': 'string', 'description': 'Date as YYYY-MM-DD'};
+const _colorArg = {'type': 'string', 'description': 'Hex color, e.g. #3E7CB1'};
 
 /// Dispatches Day-Dial's MCP tool calls (SPEC §6.2) against a [DayRepository],
 /// routing every mutating tool through a [ConsentGate] first. Read tools run
@@ -37,45 +65,140 @@ class DayDialTools {
   final DateTime Function() _clock;
 
   /// The full tool catalog, for MCP `tools/list`.
-  static const List<ToolSpec> specs = [
-    ToolSpec(name: 'get_current_block', description: 'The block active now.'),
-    ToolSpec(name: 'get_day', description: 'A day\'s blocks and task tray.'),
-    ToolSpec(name: 'list_upcoming', description: 'The next N upcoming blocks.'),
+  static final List<ToolSpec> specs = [
     ToolSpec(
-        name: 'get_recurring_tasks',
-        description: 'Untimed recurring tasks and today\'s done state.'),
+      name: 'get_current_block',
+      description: 'The block active now.',
+      inputSchema: _schema({'now': _timeArg}),
+    ),
     ToolSpec(
-        name: 'get_stats',
-        description: 'Plan-vs-actual variance over a range.'),
+      name: 'get_day',
+      description: 'A day\'s blocks and task tray.',
+      inputSchema: _schema({'date': _dateArg}),
+    ),
     ToolSpec(
-        name: 'add_block',
-        description: 'Add a block to the active profile.',
-        mutates: true),
+      name: 'list_upcoming',
+      description: 'The next N upcoming blocks.',
+      inputSchema: _schema({
+        'count': {'type': 'integer', 'description': 'How many (default 3)'},
+        'from': _timeArg,
+      }),
+    ),
     ToolSpec(
-        name: 'update_block',
-        description: 'Move, resize, rename, or recolor a block.',
-        mutates: true),
+      name: 'get_recurring_tasks',
+      description: 'Untimed recurring tasks and today\'s done state.',
+      inputSchema: _schema({
+        'status': {
+          'type': 'string',
+          'enum': ['all', 'done', 'pending'],
+        },
+        'date': _dateArg,
+      }),
+    ),
     ToolSpec(
-        name: 'delete_block',
-        description: 'Delete a block; its span merges into a neighbor.',
-        mutates: true,
-        destructive: true),
+      name: 'get_stats',
+      description: 'Plan-vs-actual variance over a range.',
+      inputSchema: _schema({
+        'range': {
+          'type': 'string',
+          'enum': ['day', 'week', 'month'],
+        },
+        'metric': {'type': 'string'},
+      }),
+    ),
     ToolSpec(
-        name: 'add_recurring_task',
-        description: 'Add an untimed recurring task.',
-        mutates: true),
+      name: 'add_block',
+      description: 'Add a block to the active profile.',
+      inputSchema: _schema({
+        'name': {'type': 'string'},
+        'start': _timeArg,
+        'end': _timeArg,
+        'color': _colorArg,
+      }, required: [
+        'name',
+        'start',
+        'end'
+      ]),
+      mutates: true,
+    ),
     ToolSpec(
-        name: 'complete_task',
-        description: 'Mark a recurring task done on a date.',
-        mutates: true),
+      name: 'update_block',
+      description: 'Move, resize, rename, or recolor a block.',
+      inputSchema: _schema({
+        'id': {'type': 'string'},
+        'name': {'type': 'string'},
+        'start': _timeArg,
+        'end': _timeArg,
+        'color': _colorArg,
+      }, required: [
+        'id'
+      ]),
+      mutates: true,
+    ),
     ToolSpec(
-        name: 'switch_profile',
-        description: 'Make a profile the active day layout.',
-        mutates: true),
+      name: 'delete_block',
+      description: 'Delete a block; its span merges into a neighbor.',
+      inputSchema: _schema({
+        'id': {'type': 'string'},
+      }, required: [
+        'id'
+      ]),
+      mutates: true,
+      destructive: true,
+    ),
     ToolSpec(
-        name: 'log_actual',
-        description: 'Record what actually happened (append-only).',
-        mutates: true),
+      name: 'add_recurring_task',
+      description: 'Add an untimed recurring task.',
+      inputSchema: _schema({
+        'label': {'type': 'string'},
+        'recurrence': {
+          'type': 'string',
+          'description':
+              'daily | weekly:1,3,5 | interval:N@YYYY-MM-DD | dates:YYYY-MM-DD,...',
+        },
+        'color': _colorArg,
+      }, required: [
+        'label',
+        'recurrence'
+      ]),
+      mutates: true,
+    ),
+    ToolSpec(
+      name: 'complete_task',
+      description: 'Mark a recurring task done on a date.',
+      inputSchema: _schema({
+        'id': {'type': 'string'},
+        'date': _dateArg,
+      }, required: [
+        'id'
+      ]),
+      mutates: true,
+    ),
+    ToolSpec(
+      name: 'switch_profile',
+      description: 'Make a profile the active day layout.',
+      inputSchema: _schema({
+        'profile': {'type': 'string'},
+      }, required: [
+        'profile'
+      ]),
+      mutates: true,
+    ),
+    ToolSpec(
+      name: 'log_actual',
+      description: 'Record what actually happened (append-only).',
+      inputSchema: _schema({
+        'category': {'type': 'string'},
+        'blockId': {'type': 'string'},
+        'start': {'type': 'string', 'description': 'ISO-8601 timestamp'},
+        'end': {'type': 'string', 'description': 'ISO-8601 timestamp'},
+        'note': {'type': 'string'},
+      }, required: [
+        'start',
+        'end'
+      ]),
+      mutates: true,
+    ),
   ];
 
   static ToolSpec _spec(String name) => specs.firstWhere(

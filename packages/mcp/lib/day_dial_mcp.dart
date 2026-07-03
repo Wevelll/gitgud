@@ -4,4 +4,8 @@ library;
 
 export 'src/consent.dart';
 export 'src/repository.dart';
+export 'src/seed.dart';
 export 'src/tools.dart';
+export 'src/protocol/mcp_server.dart';
+export 'src/transport/stdio_transport.dart';
+export 'src/transport/http_transport.dart';

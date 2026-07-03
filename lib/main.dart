@@ -4,7 +4,11 @@ import 'package:flutter/material.dart';
 import 'data/repository_factory.dart';
 import 'screens/dial_screen.dart';
 
-void main() => runApp(DayDialApp(repository: createRepository()));
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final repository = await createRepository();
+  runApp(DayDialApp(repository: repository));
+}
 
 class DayDialApp extends StatelessWidget {
   const DayDialApp({super.key, required this.repository});

@@ -87,6 +87,10 @@ abstract interface class DayRepository {
 
   /// A full, serializable snapshot of current state — the sync/export unit.
   DaySnapshot snapshot();
+
+  /// Replaces **all** state with [snapshot] (import / sync-apply). The single-
+  /// writer sync model uses this; concurrent-edit merging (CRDT) is future work.
+  void restore(DaySnapshot snapshot);
 }
 
 /// In-memory [DayRepository]. Platform-agnostic (no I/O), and deterministic
@@ -335,4 +339,27 @@ class InMemoryDayRepository implements DayRepository {
         habits: habits(),
         habitEvents: habitEvents(),
       );
+
+  @override
+  void restore(DaySnapshot snapshot) {
+    _profiles
+      ..clear()
+      ..addEntries(snapshot.profiles.map((p) => MapEntry(p.id, p)));
+    _activeId = snapshot.activeProfileId;
+    _tasks
+      ..clear()
+      ..addAll(snapshot.tasks);
+    _completions
+      ..clear()
+      ..addAll(snapshot.completions);
+    _logs
+      ..clear()
+      ..addAll(snapshot.logs);
+    _habits
+      ..clear()
+      ..addAll(snapshot.habits);
+    _habitEvents
+      ..clear()
+      ..addAll(snapshot.habitEvents);
+  }
 }

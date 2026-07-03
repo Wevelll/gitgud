@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:day_dial_core/day_dial_core.dart';
+
 import '../tools.dart';
 
 /// A small HTTP data API for the **web companion** (SPEC §8): the desktop hub
@@ -53,7 +55,7 @@ class DataApiServer {
     res.headers.set('access-control-allow-origin', _corsOrigin(req));
     res.headers
         .set('access-control-allow-headers', 'authorization,content-type');
-    res.headers.set('access-control-allow-methods', 'GET,POST,OPTIONS');
+    res.headers.set('access-control-allow-methods', 'GET,POST,PUT,OPTIONS');
     try {
       if (req.method == 'OPTIONS') {
         res.statusCode = HttpStatus.noContent;
@@ -71,6 +73,9 @@ class DataApiServer {
       if (req.method == 'GET' && req.uri.path == '/state') {
         return _json(res, {'state': tools.repo.snapshot().toJson()});
       }
+      if (req.method == 'PUT' && req.uri.path == '/state') {
+        return _handleRestore(req);
+      }
       if (req.method == 'POST' && req.uri.path == '/call') {
         return _handleCall(req);
       }
@@ -82,6 +87,19 @@ class DataApiServer {
       } finally {
         await res.close();
       }
+    }
+  }
+
+  Future<void> _handleRestore(HttpRequest req) async {
+    final body = await utf8.decodeStream(req);
+    try {
+      final json = (jsonDecode(body) as Map).cast<String, Object?>();
+      final state = (json['state'] as Map).cast<String, Object?>();
+      tools.repo.restore(DaySnapshot.fromJson(state));
+      return _json(req.response, {'ok': true});
+    } catch (e) {
+      return _json(req.response, {'error': '$e'},
+          status: HttpStatus.badRequest);
     }
   }
 

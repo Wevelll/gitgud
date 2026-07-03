@@ -90,6 +90,32 @@ void main() {
     expect(snap.habits.single.label, 'Water');
   });
 
+  test('PUT /state replaces state (web-client push)', () async {
+    server = buildServer();
+    base = await server.start();
+
+    // Fetch, mutate the snapshot client-side, push it back.
+    final (_, body) = await req(base.replace(path: '/state'));
+    final snap = DaySnapshot.fromJson(
+        ((body! as Map)['state'] as Map).cast<String, Object?>());
+    final edited = InMemoryDayRepository.fromSnapshot(snap)
+      ..addHabit(label: 'Pushed', colorHex: '#000');
+
+    final (putStatus, putBody) = await req(
+      base.replace(path: '/state'),
+      method: 'PUT',
+      body: {'state': edited.snapshot().toJson()},
+    );
+    expect(putStatus, 200);
+    expect((putBody! as Map)['ok'], isTrue);
+
+    // Server now reflects the pushed state.
+    final (_, after) = await req(base.replace(path: '/state'));
+    final restored = DaySnapshot.fromJson(
+        ((after! as Map)['state'] as Map).cast<String, Object?>());
+    expect(restored.habits.single.label, 'Pushed');
+  });
+
   test('a failing tool returns an error, not a crash', () async {
     server = buildServer();
     base = await server.start();

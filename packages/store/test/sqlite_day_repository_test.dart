@@ -153,6 +153,27 @@ void main() {
     });
   });
 
+  test('restore replaces all state from a snapshot (persisted)', () {
+    final source = memRepo();
+    final today = CivilDate.parse('2026-07-03');
+    source.addHabit(label: 'Water', colorHex: '#3E7CB1', dailyTarget: 8);
+    source.addRecurringTask(
+        label: 'Meds', recurrence: const DailyRecurrence(), colorHex: '#abc');
+    final snap = source.snapshot();
+
+    final target = memRepo(seed: [weekend()]);
+    expect(target.habits(), isEmpty);
+    target.restore(snap);
+
+    expect(target.activeProfile().name, 'Weekday');
+    expect(target.habits().single.label, 'Water');
+    expect(target.tasks().single.label, 'Meds');
+    expect(habitCountOn(today, target.habits().single.id, target.habitEvents()),
+        0);
+    source.close();
+    target.close();
+  });
+
   group('durability across a real reopen (file-backed)', () {
     late Directory dir;
     setUp(() => dir = Directory.systemTemp.createTempSync('daydial_test'));

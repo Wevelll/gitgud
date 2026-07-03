@@ -451,4 +451,92 @@ class SqliteDayRepository implements DayRepository {
         habits: habits(),
         habitEvents: habitEvents(),
       );
+
+  @override
+  void restore(DaySnapshot snapshot) {
+    _db.execute('BEGIN');
+    try {
+      for (final t in const [
+        'segments',
+        'habit_events',
+        'habits',
+        'task_completions',
+        'time_logs',
+        'recurring_tasks',
+        'profiles',
+      ]) {
+        _db.execute('DELETE FROM $t');
+      }
+      for (final p in snapshot.profiles) {
+        _insertProfile(p);
+      }
+      _setSetting('active_profile_id', snapshot.activeProfileId);
+      for (final t in snapshot.tasks) {
+        _db.execute(
+          'INSERT INTO recurring_tasks '
+          '(id, label, color, recurrence_rule, created_at, archived) '
+          'VALUES (?, ?, ?, ?, ?, ?)',
+          [
+            t.id,
+            t.label,
+            t.colorHex,
+            t.recurrence.encode(),
+            t.createdAt,
+            t.archived ? 1 : 0,
+          ],
+        );
+      }
+      for (final c in snapshot.completions) {
+        _db.execute(
+          'INSERT INTO task_completions (id, task_id, date, completed_at) '
+          'VALUES (?, ?, ?, ?)',
+          [c.id, c.taskId, c.date.iso, c.completedAt],
+        );
+      }
+      for (final l in snapshot.logs) {
+        _db.execute(
+          'INSERT INTO time_logs '
+          '(id, date, start_ts, end_ts, category, segment_id, note, source) '
+          'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          [
+            l.id,
+            l.date.iso,
+            l.startTs,
+            l.endTs,
+            l.category,
+            l.segmentId,
+            l.note,
+            l.source.name,
+          ],
+        );
+      }
+      for (final h in snapshot.habits) {
+        _db.execute(
+          'INSERT INTO habits '
+          '(id, label, color, polarity, daily_target, created_at, archived) '
+          'VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [
+            h.id,
+            h.label,
+            h.colorHex,
+            h.polarity.name,
+            h.dailyTarget,
+            h.createdAt,
+            h.archived ? 1 : 0,
+          ],
+        );
+      }
+      for (final e in snapshot.habitEvents) {
+        _db.execute(
+          'INSERT INTO habit_events (id, habit_id, date, ts) '
+          'VALUES (?, ?, ?, ?)',
+          [e.id, e.habitId, e.date.iso, e.ts],
+        );
+      }
+      _db.execute('COMMIT');
+    } catch (_) {
+      _db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
 }

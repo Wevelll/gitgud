@@ -8,8 +8,9 @@ import 'repository_factory_io.dart'
     if (dart.library.js_interop) 'repository_factory_web.dart';
 
 /// Creates the app's repository for the current platform, seeded on first run
-/// with the default day and demo tasks.
-DayRepository createRepository() => openPlatformRepository();
+/// with the default day and demo tasks. Async because the web build fetches
+/// its initial state from the desktop hub over HTTP.
+Future<DayRepository> createRepository() => openPlatformRepository();
 
 /// Ensures the demo tasks and habits exist the first time a store is created (a
 /// fresh store has none). Shared by both platform factories.

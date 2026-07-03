@@ -9,6 +9,13 @@ class InvalidProfileException implements Exception {
   String toString() => 'InvalidProfileException: $message';
 }
 
+/// An upcoming segment paired with how many minutes until it starts.
+class UpcomingBlock {
+  const UpcomingBlock({required this.segment, required this.inMinutes});
+  final Segment segment;
+  final int inMinutes;
+}
+
 /// A day layout: an ordered, contiguous ring of [Segment]s that tiles the full
 /// 24 hours with no gaps or overlaps.
 ///
@@ -148,6 +155,26 @@ class DayProfile {
   /// Minutes remaining in the current segment at [minute].
   int remainingAt(int minute) =>
       segmentAt(minute).durationMin - offsetInto(minute);
+
+  /// The next [count] segments starting strictly after [minute], each paired
+  /// with the minutes from [minute] until it begins. Walks clockwise around the
+  /// ring; if [count] exceeds the number of segments it wraps into following
+  /// days and `inMinutes` keeps accumulating (so day 2's Sleep reads e.g.
+  /// 1500, not 60). Powers MCP `list_upcoming`.
+  List<UpcomingBlock> upcomingFrom(int minute, int count) {
+    final m = normalizeMinute(minute);
+    final result = <UpcomingBlock>[];
+    var cursorStart = m;
+    var elapsed = 0;
+    for (var k = 0; k < count; k++) {
+      final next = nextAfter(cursorStart);
+      final step = spanMinutes(cursorStart, next.startMin);
+      elapsed += step == 0 ? minutesPerDay : step;
+      result.add(UpcomingBlock(segment: next, inMinutes: elapsed));
+      cursorStart = next.startMin;
+    }
+    return result;
+  }
 
   /// Moves the shared boundary between segment [index] and its clockwise
   /// neighbor by [deltaMin] minutes, shrinking one and growing the other while

@@ -62,6 +62,21 @@ void main() {
       expect(p.nextAfter(1080).name, 'Sleep'); // after Free time -> Sleep
       expect(p.nextAfter(0).name, 'Morning'); // after Sleep -> Morning
     });
+
+    test('upcomingFrom lists the next starts with accumulating minutes', () {
+      final up = p.upcomingFrom(450, 3); // 07:30, inside Morning (ends 09:00)
+      expect(up.map((u) => u.segment.name).toList(),
+          ['Deep work', 'Lunch', 'Work']);
+      expect(up.map((u) => u.inMinutes).toList(), [90, 330, 390]);
+    });
+
+    test('upcomingFrom wraps into the next day without losing minutes', () {
+      // 6 segments; the 7th upcoming is the same wedge one day later.
+      final up = p.upcomingFrom(450, 7);
+      expect(up.length, 7);
+      expect(up.last.segment.name, up.first.segment.name); // Deep work again
+      expect(up.last.inMinutes, up.first.inMinutes + 1440); // +1 day
+    });
   });
 
   group('resizeBoundary', () {

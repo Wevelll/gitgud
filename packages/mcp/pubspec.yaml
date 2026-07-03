@@ -1,0 +1,17 @@
+name: day_dial_mcp
+description: >-
+  MCP tool layer for Day-Dial: consent-gated tool handlers over the shared core,
+  plus an in-memory repository. Transport (stdio / Streamable HTTP) is layered
+  on top of this. No Flutter.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  day_dial_core:
+    path: ../core
+
+dev_dependencies:
+  test: ^1.25.0

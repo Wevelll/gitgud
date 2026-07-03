@@ -4,8 +4,8 @@
 build/
 *.iml
 
-# Library packages don't commit their lockfile (apps do). core is a library.
-packages/core/pubspec.lock
+# Library packages don't commit their lockfile (apps do). core/mcp are libs.
+packages/*/pubspec.lock
 
 # IDE / OS
 .idea/

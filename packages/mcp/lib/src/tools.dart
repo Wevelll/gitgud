@@ -1,7 +1,6 @@
 import 'package:day_dial_core/day_dial_core.dart';
 
 import 'consent.dart';
-import 'repository.dart';
 
 /// Metadata for one MCP tool: its name, one-line description, and whether it
 /// mutates state / is destructive (mirrors MCP's `destructiveHint`).

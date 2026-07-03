@@ -1,0 +1,18 @@
+# Lints for the pure-Dart core. The Flutter app uses flutter_lints; here we
+# use the plain lints package equivalent via the language rules below.
+analyzer:
+  language:
+    strict-casts: true
+    strict-raw-types: true
+  errors:
+    # A stray Flutter/dart:io import in `core` is an architecture violation,
+    # not a warning — but those are caught structurally by having no such
+    # dependency. Keep analysis strict otherwise.
+    todo: ignore
+
+linter:
+  rules:
+    - prefer_final_locals
+    - prefer_const_constructors
+    - avoid_print
+    - unnecessary_this

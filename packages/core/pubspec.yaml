@@ -1,0 +1,16 @@
+name: day_dial_core
+description: >-
+  Platform-agnostic core for Day-Dial: models, segment/time math, and
+  plan-vs-actual logic. No Flutter, no dart:io — must compile for web.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+
+# Intentionally dependency-free. `core` is the shared brain that both the
+# Flutter UI and the MCP server call; keep it lean and platform-agnostic.
+dependencies:
+
+dev_dependencies:
+  test: ^1.25.0

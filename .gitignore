@@ -1,0 +1,16 @@
+# Dart / Flutter
+.dart_tool/
+.packages
+build/
+*.iml
+
+# Library packages don't commit their lockfile (apps do). core is a library.
+packages/core/pubspec.lock
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Local scratch
+*.log

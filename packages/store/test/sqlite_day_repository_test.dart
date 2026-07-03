@@ -96,6 +96,9 @@ void main() {
 
       final tray = trayFor(date, repo.tasks(), repo.completions());
       expect(tray.single.doneToday, isTrue);
+
+      repo.uncompleteTask(task.id, date); // un-check
+      expect(repo.completions(), isEmpty);
       repo.close();
     });
 

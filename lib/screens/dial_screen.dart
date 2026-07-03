@@ -3,30 +3,35 @@ import 'dart:async';
 import 'package:day_dial_core/day_dial_core.dart';
 import 'package:flutter/material.dart';
 
-import '../data/seed.dart';
 import '../painters/dial_painter.dart';
 import '../widgets/dial_view.dart';
 
 /// The main dial screen: the dial plus its controls, a resize editor, and the
-/// must-do tray. All state is minimal `setState` (CLAUDE.md: the UI is wiring;
-/// logic lives in `core`).
+/// must-do tray. State is minimal `setState`; all reads/writes go through a
+/// [DayRepository] (CLAUDE.md: the UI is wiring; logic + persistence live
+/// behind the repository).
 class DialScreen extends StatefulWidget {
-  const DialScreen({super.key});
+  const DialScreen({super.key, required this.repository});
+
+  final DayRepository repository;
 
   @override
   State<DialScreen> createState() => _DialScreenState();
 }
 
 class _DialScreenState extends State<DialScreen> {
-  DayProfile _profile = defaultProfile();
+  DayRepository get _repo => widget.repository;
+
+  late DayProfile _profile;
+  late List<RecurringTask> _tasks;
+  late List<TaskCompletion> _completions;
+
   DialMode _mode = DialMode.compass;
   bool _live = true;
   int _nowMin = _minuteOfNow();
   String? _selectedId;
 
-  late final List<RecurringTask> _tasks = demoTasks();
   final CivilDate _today = CivilDate.fromDateTime(DateTime.now());
-
   Timer? _timer;
 
   static int _minuteOfNow() {
@@ -37,7 +42,14 @@ class _DialScreenState extends State<DialScreen> {
   @override
   void initState() {
     super.initState();
+    _loadFromRepo();
     _startClock();
+  }
+
+  void _loadFromRepo() {
+    _profile = _repo.activeProfile();
+    _tasks = _repo.tasks();
+    _completions = _repo.completions();
   }
 
   void _startClock() {
@@ -56,10 +68,28 @@ class _DialScreenState extends State<DialScreen> {
 
   int _indexOf(String id) => _profile.segments.indexWhere((s) => s.id == id);
 
+  /// Resizes the selected wedge by moving its end boundary (persisted). A move
+  /// that would breach the 15-min minimum or cross a neighbor is rejected by
+  /// core and left as a no-op.
   void _resizeSelected(int delta) {
     final id = _selectedId;
     if (id == null) return;
-    setState(() => _profile = _profile.resizeBoundary(_indexOf(id), delta));
+    final seg = _profile.segments[_indexOf(id)];
+    try {
+      _repo.updateBlock(id, endMin: seg.endMin + delta);
+    } on InvalidProfileException {
+      return;
+    }
+    setState(() => _profile = _repo.activeProfile());
+  }
+
+  void _toggleTask(String taskId, bool currentlyDone) {
+    if (currentlyDone) {
+      _repo.uncompleteTask(taskId, _today);
+    } else {
+      _repo.completeTask(taskId, _today);
+    }
+    setState(() => _completions = _repo.completions());
   }
 
   @override
@@ -253,7 +283,7 @@ class _DialScreenState extends State<DialScreen> {
   }
 
   Widget _tray() {
-    final tray = trayFor(_today, _tasks, _completionsFromDone());
+    final tray = trayFor(_today, _tasks, _completions);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -273,9 +303,14 @@ class _DialScreenState extends State<DialScreen> {
             ),
           ),
           const SizedBox(height: 8),
+          if (tray.isEmpty)
+            Text(
+              'Nothing due today',
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.45)),
+            ),
           for (final item in tray)
             InkWell(
-              onTap: () => setState(() => _toggleDone(item.task.id)),
+              onTap: () => _toggleTask(item.task.id, item.doneToday),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Row(
@@ -306,22 +341,5 @@ class _DialScreenState extends State<DialScreen> {
         ],
       ),
     );
-  }
-
-  // The tray reads completions; the demo tracks "done" ids in a set and adapts
-  // them into TaskCompletion for today so the same core `trayFor` drives the UI.
-  final Set<String> _done = {};
-  List<TaskCompletion> _completionsFromDone() => [
-    for (final id in _done)
-      TaskCompletion(
-        id: 'c_$id',
-        taskId: id,
-        date: _today,
-        completedAt: DateTime.now().toUtc().toIso8601String(),
-      ),
-  ];
-
-  void _toggleDone(String id) {
-    if (!_done.remove(id)) _done.add(id);
   }
 }

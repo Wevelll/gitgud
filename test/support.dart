@@ -1,5 +1,17 @@
 import 'package:day_dial_core/day_dial_core.dart';
 
+/// An in-memory repository seeded with the reference day and one demo task —
+/// injected into the app in widget tests (no SQLite, no files).
+DayRepository testRepository() {
+  final repo = InMemoryDayRepository(profiles: [testProfile()]);
+  repo.addRecurringTask(
+    label: 'Take meds',
+    recurrence: const DailyRecurrence(),
+    colorHex: '#3E7CB1',
+  );
+  return repo;
+}
+
 /// The prototype's reference ring, used across the widget tests.
 DayProfile testProfile() => DayProfile.ring(
   id: 'weekday',

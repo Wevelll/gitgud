@@ -51,6 +51,9 @@ abstract interface class DayRepository {
   /// Marks [taskId] done on [date]; idempotent per (task, date).
   void completeTask(String taskId, CivilDate date);
 
+  /// Removes the completion for [taskId] on [date], if any (un-checks it).
+  void uncompleteTask(String taskId, CivilDate date);
+
   List<TimeLog> logs();
 
   TimeLog logActual({
@@ -190,6 +193,11 @@ class InMemoryDayRepository implements DayRepository {
       date: date,
       completedAt: _clock().toUtc().toIso8601String(),
     ));
+  }
+
+  @override
+  void uncompleteTask(String taskId, CivilDate date) {
+    _completions.removeWhere((c) => c.taskId == taskId && c.date == date);
   }
 
   @override

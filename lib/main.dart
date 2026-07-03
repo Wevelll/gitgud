@@ -1,11 +1,15 @@
+import 'package:day_dial_core/day_dial_core.dart';
 import 'package:flutter/material.dart';
 
+import 'data/repository_factory.dart';
 import 'screens/dial_screen.dart';
 
-void main() => runApp(const DayDialApp());
+void main() => runApp(DayDialApp(repository: createRepository()));
 
 class DayDialApp extends StatelessWidget {
-  const DayDialApp({super.key});
+  const DayDialApp({super.key, required this.repository});
+
+  final DayRepository repository;
 
   @override
   Widget build(BuildContext context) {
@@ -15,7 +19,7 @@ class DayDialApp extends StatelessWidget {
       theme: ThemeData.dark(
         useMaterial3: true,
       ).copyWith(scaffoldBackgroundColor: const Color(0xFF0A0D18)),
-      home: const DialScreen(),
+      home: DialScreen(repository: repository),
     );
   }
 }

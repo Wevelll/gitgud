@@ -36,6 +36,11 @@ dependencies:
   day_dial_core:
     path: packages/core
 
+  # SQLite persistence — only reached on desktop/native via a conditional
+  # import, so it never enters the web build (which can't use dart:ffi).
+  day_dial_store:
+    path: packages/store
+
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8

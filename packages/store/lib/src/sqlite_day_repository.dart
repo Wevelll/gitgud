@@ -272,6 +272,14 @@ class SqliteDayRepository implements DayRepository {
     );
   }
 
+  @override
+  void uncompleteTask(String taskId, CivilDate date) {
+    _db.execute(
+      'DELETE FROM task_completions WHERE task_id = ? AND date = ?',
+      [taskId, date.iso],
+    );
+  }
+
   // ---- time logs ------------------------------------------------------------
 
   @override

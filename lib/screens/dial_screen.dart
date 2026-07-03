@@ -223,7 +223,20 @@ class _DialScreenState extends State<DialScreen> {
                   if (_live) _nowMin = _minuteOfNow();
                   _startClock();
                 }),
-                child: Text(_live ? '● Live' : 'Live'),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_live) ...[
+                      const Icon(
+                        Icons.circle,
+                        size: 10,
+                        color: Color(0xFF6FA85B),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    const Text('Live'),
+                  ],
+                ),
               ),
             ),
           ],

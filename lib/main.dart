@@ -16,9 +16,11 @@ class DayDialApp extends StatelessWidget {
     return MaterialApp(
       title: 'Day-Dial',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(
-        useMaterial3: true,
-      ).copyWith(scaffoldBackgroundColor: const Color(0xFF0A0D18)),
+      theme: ThemeData.dark(useMaterial3: true).copyWith(
+        scaffoldBackgroundColor: const Color(0xFF0A0D18),
+        // Bundled Roboto (see pubspec) — no CDN font fetch, works offline.
+        textTheme: ThemeData.dark().textTheme.apply(fontFamily: 'Roboto'),
+      ),
       home: DialScreen(repository: repository),
     );
   }

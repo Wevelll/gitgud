@@ -67,6 +67,16 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # Bundle Roboto (Apache-2.0) so the app never fetches a font from a CDN —
+  # local-first / no-phone-home (golden rule #6), and it works fully offline
+  # on web. Flutter's default web font is otherwise pulled from Google's CDN.
+  fonts:
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/Roboto-Regular.ttf
+        - asset: assets/fonts/Roboto-Medium.ttf
+          weight: 500
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

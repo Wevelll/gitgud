@@ -25,6 +25,8 @@ class _DialScreenState extends State<DialScreen> {
   late DayProfile _profile;
   late List<RecurringTask> _tasks;
   late List<TaskCompletion> _completions;
+  late List<Habit> _habits;
+  late List<HabitEvent> _habitEvents;
 
   DialMode _mode = DialMode.compass;
   bool _live = true;
@@ -50,6 +52,8 @@ class _DialScreenState extends State<DialScreen> {
     _profile = _repo.activeProfile();
     _tasks = _repo.tasks();
     _completions = _repo.completions();
+    _habits = _repo.habits();
+    _habitEvents = _repo.habitEvents();
   }
 
   void _startClock() {
@@ -92,6 +96,33 @@ class _DialScreenState extends State<DialScreen> {
     setState(() => _completions = _repo.completions());
   }
 
+  void _bumpHabit(String habitId, int delta) {
+    if (delta < 0) {
+      _repo.decrementHabit(habitId, _today);
+    } else {
+      _repo.incrementHabit(habitId, date: _today);
+    }
+    setState(() => _habitEvents = _repo.habitEvents());
+  }
+
+  Future<void> _addHabitDialog() async {
+    final result = await showDialog<_NewHabit>(
+      context: context,
+      builder: (_) => const _AddHabitDialog(),
+    );
+    if (result == null) return;
+    _repo.addHabit(
+      label: result.label,
+      colorHex: result.polarity == HabitPolarity.bad ? '#B5624F' : '#6FA85B',
+      polarity: result.polarity,
+      dailyTarget: result.target,
+    );
+    setState(() {
+      _habits = _repo.habits();
+      _habitEvents = _repo.habitEvents();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final cur = _profile.segmentAt(_nowMin);
@@ -114,6 +145,8 @@ class _DialScreenState extends State<DialScreen> {
                   _selectedEditor(),
                   const SizedBox(height: 12),
                   _tray(),
+                  const SizedBox(height: 12),
+                  _habitsSection(),
                 ],
               ),
             ),
@@ -282,6 +315,93 @@ class _DialScreenState extends State<DialScreen> {
     );
   }
 
+  Widget _habitsSection() {
+    final counts = habitCountsFor(_today, _habits, _habitEvents);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0E1322),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'HABITS · TAP TO COUNT',
+                style: TextStyle(
+                  fontSize: 11,
+                  letterSpacing: 2,
+                  color: Colors.white.withValues(alpha: 0.45),
+                ),
+              ),
+              InkWell(
+                onTap: _addHabitDialog,
+                child: const Padding(
+                  padding: EdgeInsets.all(4),
+                  child: Icon(Icons.add, size: 18),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          if (counts.isEmpty)
+            Text(
+              'No habits yet — add one with +',
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.45)),
+            ),
+          for (final c in counts) _habitRow(c),
+        ],
+      ),
+    );
+  }
+
+  Widget _habitRow(HabitDayCount c) {
+    final color = parseHexColor(c.habit.colorHex);
+    final bad = c.habit.polarity == HabitPolarity.bad;
+    final countText = c.target != null
+        ? '${c.count} / ${c.target}'
+        : '${c.count}';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: Text(c.habit.label)),
+          Text(
+            countText,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontFeatures: const [FontFeature.tabularFigures()],
+              color: c.targetReached
+                  ? (bad ? const Color(0xFFB5624F) : const Color(0xFF6FA85B))
+                  : Colors.white,
+            ),
+          ),
+          const SizedBox(width: 4),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            onPressed: c.count > 0 ? () => _bumpHabit(c.habit.id, -1) : null,
+            icon: const Icon(Icons.remove_circle_outline, size: 20),
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            onPressed: () => _bumpHabit(c.habit.id, 1),
+            icon: Icon(Icons.add_circle, size: 22, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _tray() {
     final tray = trayFor(_today, _tasks, _completions);
     return Container(
@@ -340,6 +460,87 @@ class _DialScreenState extends State<DialScreen> {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// The result of the add-habit dialog.
+class _NewHabit {
+  const _NewHabit(this.label, this.polarity, this.target);
+  final String label;
+  final HabitPolarity polarity;
+  final int? target;
+}
+
+/// A small dialog to create a habit: a name, good/bad, and an optional target.
+class _AddHabitDialog extends StatefulWidget {
+  const _AddHabitDialog();
+
+  @override
+  State<_AddHabitDialog> createState() => _AddHabitDialogState();
+}
+
+class _AddHabitDialogState extends State<_AddHabitDialog> {
+  final _label = TextEditingController();
+  final _target = TextEditingController();
+  HabitPolarity _polarity = HabitPolarity.good;
+
+  @override
+  void dispose() {
+    _label.dispose();
+    _target.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('New habit'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _label,
+            autofocus: true,
+            decoration: const InputDecoration(labelText: 'Name'),
+          ),
+          const SizedBox(height: 12),
+          SegmentedButton<HabitPolarity>(
+            segments: const [
+              ButtonSegment(value: HabitPolarity.good, label: Text('Build up')),
+              ButtonSegment(value: HabitPolarity.bad, label: Text('Cut down')),
+            ],
+            selected: {_polarity},
+            showSelectedIcon: false,
+            onSelectionChanged: (s) => setState(() => _polarity = s.first),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _target,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Daily target (optional)',
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final label = _label.text.trim();
+            if (label.isEmpty) return;
+            Navigator.pop(
+              context,
+              _NewHabit(label, _polarity, int.tryParse(_target.text.trim())),
+            );
+          },
+          child: const Text('Add'),
+        ),
+      ],
     );
   }
 }

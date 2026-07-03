@@ -11,15 +11,26 @@ import 'repository_factory_io.dart'
 /// with the default day and demo tasks.
 DayRepository createRepository() => openPlatformRepository();
 
-/// Ensures the demo tasks exist the first time a store is created (a fresh
-/// store has none). Shared by both platform factories.
+/// Ensures the demo tasks and habits exist the first time a store is created (a
+/// fresh store has none). Shared by both platform factories.
 void seedTasksIfEmpty(DayRepository repo) {
-  if (repo.tasks().isNotEmpty) return;
-  for (final t in demoTasks()) {
-    repo.addRecurringTask(
-      label: t.label,
-      recurrence: t.recurrence,
-      colorHex: t.colorHex,
-    );
+  if (repo.tasks().isEmpty) {
+    for (final t in demoTasks()) {
+      repo.addRecurringTask(
+        label: t.label,
+        recurrence: t.recurrence,
+        colorHex: t.colorHex,
+      );
+    }
+  }
+  if (repo.habits().isEmpty) {
+    for (final h in demoHabits()) {
+      repo.addHabit(
+        label: h.label,
+        colorHex: h.colorHex,
+        polarity: h.polarity,
+        dailyTarget: h.target,
+      );
+    }
   }
 }

@@ -1,4 +1,5 @@
 import '../models/day_profile.dart';
+import '../models/habit.dart';
 import '../models/recurrence.dart';
 import '../models/recurring_task.dart';
 import '../models/ring_edit.dart';
@@ -64,6 +65,24 @@ abstract interface class DayRepository {
     String? note,
     LogSource source,
   });
+
+  List<Habit> habits();
+  List<HabitEvent> habitEvents();
+
+  Habit addHabit({
+    required String label,
+    required String colorHex,
+    HabitPolarity polarity,
+    int? dailyTarget,
+  });
+
+  /// Records one occurrence of [habitId] on [date] (default: today). Returns
+  /// the appended event.
+  HabitEvent incrementHabit(String habitId, {CivilDate? date});
+
+  /// Removes the most recent occurrence of [habitId] on [date], if any. Returns
+  /// whether one was removed (so a count can't go below zero).
+  bool decrementHabit(String habitId, CivilDate date);
 }
 
 /// In-memory [DayRepository]. Platform-agnostic (no I/O), and deterministic
@@ -93,6 +112,8 @@ class InMemoryDayRepository implements DayRepository {
   final List<RecurringTask> _tasks = [];
   final List<TaskCompletion> _completions = [];
   final List<TimeLog> _logs = [];
+  final List<Habit> _habits = [];
+  final List<HabitEvent> _habitEvents = [];
 
   static String Function() _sequentialIds() {
     var n = 0;
@@ -224,5 +245,58 @@ class InMemoryDayRepository implements DayRepository {
     );
     _logs.add(log);
     return log;
+  }
+
+  @override
+  List<Habit> habits() => List.unmodifiable(_habits);
+
+  @override
+  List<HabitEvent> habitEvents() => List.unmodifiable(_habitEvents);
+
+  @override
+  Habit addHabit({
+    required String label,
+    required String colorHex,
+    HabitPolarity polarity = HabitPolarity.good,
+    int? dailyTarget,
+  }) {
+    final habit = Habit(
+      id: _idFactory(),
+      label: label,
+      colorHex: colorHex,
+      createdAt: _clock().toUtc().toIso8601String(),
+      polarity: polarity,
+      dailyTarget: dailyTarget,
+    );
+    _habits.add(habit);
+    return habit;
+  }
+
+  @override
+  HabitEvent incrementHabit(String habitId, {CivilDate? date}) {
+    if (!_habits.any((h) => h.id == habitId)) {
+      throw StateError('No habit "$habitId"');
+    }
+    final now = _clock();
+    final event = HabitEvent(
+      id: _idFactory(),
+      habitId: habitId,
+      date: date ?? CivilDate.fromDateTime(now),
+      ts: now.toUtc().toIso8601String(),
+    );
+    _habitEvents.add(event);
+    return event;
+  }
+
+  @override
+  bool decrementHabit(String habitId, CivilDate date) {
+    for (var i = _habitEvents.length - 1; i >= 0; i--) {
+      final e = _habitEvents[i];
+      if (e.habitId == habitId && e.date == date) {
+        _habitEvents.removeAt(i);
+        return true;
+      }
+    }
+    return false;
   }
 }

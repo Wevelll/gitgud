@@ -90,6 +90,8 @@ void main() {
         'complete_task',
         'switch_profile',
         'log_actual',
+        'add_habit',
+        'log_habit',
       });
       expect(
           DayDialTools.specs
@@ -193,6 +195,31 @@ void main() {
       expect(deep['plannedMin'], 240); // Deep work is 4h in the profile
       expect(deep['actualMin'], 120); // logged 2h
       expect(deep['deltaMin'], -120);
+    });
+
+    test('habit: add, increment, and read the tally', () async {
+      final r = repo();
+      final tools = DayDialTools(r, const AllowAllConsent(), clock: fixedClock);
+
+      final habit = await tools.call(
+              'add_habit', {'label': 'Water', 'polarity': 'good', 'target': 8})
+          as Map;
+      final id = habit['id'] as String;
+
+      await tools.call('log_habit', {'id': id});
+      final logged = await tools.call('log_habit', {'id': id}) as Map;
+      expect(logged['count'], 2);
+
+      final habits = await tools.call('get_habits') as List;
+      final water =
+          habits.cast<Map<String, Object?>>().firstWhere((h) => h['id'] == id);
+      expect(water['count'], 2);
+      expect(water['target'], 8);
+
+      // Decrement via negative delta.
+      final down =
+          await tools.call('log_habit', {'id': id, 'delta': -1}) as Map;
+      expect(down['count'], 1);
     });
 
     test('log_actual by blockId derives the category', () async {

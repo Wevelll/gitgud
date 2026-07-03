@@ -339,4 +339,105 @@ class SqliteDayRepository implements DayRepository {
 
   static LogSource _parseSource(String s) => LogSource.values
       .firstWhere((v) => v.name == s, orElse: () => LogSource.manual);
+
+  // ---- habits ---------------------------------------------------------------
+
+  @override
+  List<Habit> habits() {
+    final rows = _db.select('SELECT * FROM habits');
+    return [
+      for (final r in rows)
+        Habit(
+          id: r['id'] as String,
+          label: r['label'] as String,
+          colorHex: r['color'] as String,
+          createdAt: r['created_at'] as String,
+          polarity: _parsePolarity(r['polarity'] as String),
+          dailyTarget: r['daily_target'] as int?,
+          archived: (r['archived'] as int) == 1,
+        )
+    ];
+  }
+
+  @override
+  List<HabitEvent> habitEvents() {
+    final rows = _db.select('SELECT * FROM habit_events');
+    return [
+      for (final r in rows)
+        HabitEvent(
+          id: r['id'] as String,
+          habitId: r['habit_id'] as String,
+          date: CivilDate.parse(r['date'] as String),
+          ts: r['ts'] as String,
+        )
+    ];
+  }
+
+  @override
+  Habit addHabit({
+    required String label,
+    required String colorHex,
+    HabitPolarity polarity = HabitPolarity.good,
+    int? dailyTarget,
+  }) {
+    final habit = Habit(
+      id: _idFactory(),
+      label: label,
+      colorHex: colorHex,
+      createdAt: _clock().toUtc().toIso8601String(),
+      polarity: polarity,
+      dailyTarget: dailyTarget,
+    );
+    _db.execute(
+      'INSERT INTO habits '
+      '(id, label, color, polarity, daily_target, created_at, archived) '
+      'VALUES (?, ?, ?, ?, ?, ?, 0)',
+      [
+        habit.id,
+        habit.label,
+        habit.colorHex,
+        habit.polarity.name,
+        habit.dailyTarget,
+        habit.createdAt,
+      ],
+    );
+    return habit;
+  }
+
+  @override
+  HabitEvent incrementHabit(String habitId, {CivilDate? date}) {
+    final exists = _db.select('SELECT 1 FROM habits WHERE id = ?', [habitId]);
+    if (exists.isEmpty) throw StateError('No habit "$habitId"');
+    final now = _clock();
+    final event = HabitEvent(
+      id: _idFactory(),
+      habitId: habitId,
+      date: date ?? CivilDate.fromDateTime(now),
+      ts: now.toUtc().toIso8601String(),
+    );
+    _db.execute(
+      'INSERT INTO habit_events (id, habit_id, date, ts) VALUES (?, ?, ?, ?)',
+      [event.id, event.habitId, event.date.iso, event.ts],
+    );
+    return event;
+  }
+
+  @override
+  bool decrementHabit(String habitId, CivilDate date) {
+    // Remove the most recent event for this habit/date (highest ts).
+    final rows = _db.select(
+      'SELECT id FROM habit_events WHERE habit_id = ? AND date = ? '
+      'ORDER BY ts DESC, id DESC LIMIT 1',
+      [habitId, date.iso],
+    );
+    if (rows.isEmpty) return false;
+    _db.execute(
+      'DELETE FROM habit_events WHERE id = ?',
+      [rows.first['id'] as String],
+    );
+    return true;
+  }
+
+  static HabitPolarity _parsePolarity(String s) => HabitPolarity.values
+      .firstWhere((v) => v.name == s, orElse: () => HabitPolarity.good);
 }

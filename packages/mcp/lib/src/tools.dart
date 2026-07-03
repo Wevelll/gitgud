@@ -198,6 +198,43 @@ class DayDialTools {
       ]),
       mutates: true,
     ),
+    ToolSpec(
+      name: 'get_habits',
+      description: 'Countable habits with today\'s (or a date\'s) tally.',
+      inputSchema: _schema({'date': _dateArg}),
+    ),
+    ToolSpec(
+      name: 'add_habit',
+      description: 'Create a countable habit (e.g. water, cigarettes).',
+      inputSchema: _schema({
+        'label': {'type': 'string'},
+        'polarity': {
+          'type': 'string',
+          'enum': ['good', 'bad'],
+          'description': 'good = build up, bad = cut down',
+        },
+        'target': {'type': 'integer', 'description': 'Optional daily goal/cap'},
+        'color': _colorArg,
+      }, required: [
+        'label'
+      ]),
+      mutates: true,
+    ),
+    ToolSpec(
+      name: 'log_habit',
+      description: 'Increment (or decrement) a habit\'s tally for a date.',
+      inputSchema: _schema({
+        'id': {'type': 'string'},
+        'date': _dateArg,
+        'delta': {
+          'type': 'integer',
+          'description': '+1 (default) adds an occurrence, -1 removes one',
+        },
+      }, required: [
+        'id'
+      ]),
+      mutates: true,
+    ),
   ];
 
   static ToolSpec _spec(String name) => specs.firstWhere(
@@ -245,6 +282,12 @@ class DayDialTools {
         return _switchProfile(args);
       case 'log_actual':
         return _logActual(args);
+      case 'get_habits':
+        return _getHabits(args);
+      case 'add_habit':
+        return _addHabit(args);
+      case 'log_habit':
+        return _logHabit(args);
       default:
         throw ArgumentError('Unhandled tool "$tool"');
     }
@@ -415,6 +458,55 @@ class DayDialTools {
       'start': log.startTs,
       'end': log.endTs,
       'minutes': log.durationMin,
+    };
+  }
+
+  List<Map<String, Object?>> _getHabits(Map<String, Object?> args) {
+    final date = _date(args['date']);
+    return [
+      for (final h in habitCountsFor(date, repo.habits(), repo.habitEvents()))
+        {
+          'id': h.habit.id,
+          'label': h.habit.label,
+          'polarity': h.habit.polarity.name,
+          'count': h.count,
+          'target': h.target,
+          'targetReached': h.targetReached,
+        }
+    ];
+  }
+
+  Map<String, Object?> _addHabit(Map<String, Object?> args) {
+    final polarity = switch (args['polarity']) {
+      'bad' => HabitPolarity.bad,
+      _ => HabitPolarity.good,
+    };
+    final habit = repo.addHabit(
+      label: args['label']! as String,
+      colorHex: (args['color'] as String?) ?? '#6FA85B',
+      polarity: polarity,
+      dailyTarget: (args['target'] as num?)?.toInt(),
+    );
+    return {
+      'id': habit.id,
+      'label': habit.label,
+      'polarity': habit.polarity.name,
+      'target': habit.dailyTarget,
+    };
+  }
+
+  Map<String, Object?> _logHabit(Map<String, Object?> args) {
+    final id = args['id']! as String;
+    final date = _date(args['date']);
+    final delta = (args['delta'] as num?)?.toInt() ?? 1;
+    if (delta < 0) {
+      repo.decrementHabit(id, date);
+    } else {
+      repo.incrementHabit(id, date: date);
+    }
+    return {
+      'id': id,
+      'count': habitCountOn(date, id, repo.habitEvents()),
     };
   }
 

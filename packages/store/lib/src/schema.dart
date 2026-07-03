@@ -59,6 +59,27 @@ const List<String> schemaStatements = [
   ''',
   'CREATE INDEX IF NOT EXISTS idx_time_logs_date ON time_logs(date);',
   '''
+  CREATE TABLE IF NOT EXISTS habits (
+    id           TEXT PRIMARY KEY,
+    label        TEXT NOT NULL,
+    color        TEXT NOT NULL,
+    polarity     TEXT NOT NULL,
+    daily_target INTEGER,
+    created_at   TEXT NOT NULL,
+    archived     INTEGER NOT NULL DEFAULT 0
+  );
+  ''',
+  '''
+  CREATE TABLE IF NOT EXISTS habit_events (
+    id       TEXT PRIMARY KEY,
+    habit_id TEXT NOT NULL REFERENCES habits(id) ON DELETE CASCADE,
+    date     TEXT NOT NULL,
+    ts       TEXT NOT NULL
+  );
+  ''',
+  'CREATE INDEX IF NOT EXISTS idx_habit_events_date '
+      'ON habit_events(habit_id, date);',
+  '''
   CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL

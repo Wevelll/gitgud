@@ -17,6 +17,24 @@ DayProfile defaultProfile() => DayProfile.ring(
   ],
 );
 
+/// Demo countable habits seeded on first run: a good one with a target and a
+/// bad one to keep an eye on.
+List<({String label, String colorHex, HabitPolarity polarity, int? target})>
+demoHabits() => const [
+  (
+    label: 'Water',
+    colorHex: '#3E7CB1',
+    polarity: HabitPolarity.good,
+    target: 8,
+  ),
+  (
+    label: 'Cigarettes',
+    colorHex: '#B5624F',
+    polarity: HabitPolarity.bad,
+    target: null,
+  ),
+];
+
 /// Demo "must-do today" tasks (all daily), until the tray is wired to the store.
 List<RecurringTask> demoTasks() => [
   RecurringTask(

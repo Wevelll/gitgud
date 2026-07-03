@@ -42,4 +42,21 @@ void main() {
 
     await tester.pumpWidget(const SizedBox());
   });
+
+  testWidgets('incrementing a habit persists an event', (tester) async {
+    final repo = testRepository();
+    await tester.pumpWidget(DayDialApp(repository: repo));
+    await tester.pump();
+
+    expect(repo.habitEvents(), isEmpty);
+    // Tap the + on the first habit row (there's one: "Water").
+    final plus = find.byIcon(Icons.add_circle).first;
+    await tester.ensureVisible(plus);
+    await tester.pump();
+    await tester.tap(plus);
+    await tester.pump();
+    expect(repo.habitEvents(), hasLength(1)); // written through
+
+    await tester.pumpWidget(const SizedBox());
+  });
 }

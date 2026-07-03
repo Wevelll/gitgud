@@ -9,6 +9,7 @@ DayRepository testRepository() {
     recurrence: const DailyRecurrence(),
     colorHex: '#3E7CB1',
   );
+  repo.addHabit(label: 'Water', colorHex: '#3E7CB1', dailyTarget: 8);
   return repo;
 }
 

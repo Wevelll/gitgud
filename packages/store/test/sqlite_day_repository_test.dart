@@ -123,6 +123,36 @@ void main() {
     });
   });
 
+  group('habits', () {
+    test('add, increment, count, and decrement (persisted)', () {
+      final repo = memRepo();
+      final today = CivilDate.parse('2026-07-03');
+      final water =
+          repo.addHabit(label: 'Water', colorHex: '#3E7CB1', dailyTarget: 8);
+
+      repo.incrementHabit(water.id, date: today);
+      repo.incrementHabit(water.id, date: today);
+      expect(habitCountOn(today, water.id, repo.habitEvents()), 2);
+
+      expect(repo.decrementHabit(water.id, today), isTrue);
+      expect(habitCountOn(today, water.id, repo.habitEvents()), 1);
+
+      // Can't go below the recorded events.
+      expect(repo.decrementHabit(water.id, today), isTrue);
+      expect(repo.decrementHabit(water.id, today), isFalse);
+
+      final summary = habitCountsFor(today, repo.habits(), repo.habitEvents());
+      expect(summary.single.target, 8);
+      repo.close();
+    });
+
+    test('incrementing an unknown habit throws', () {
+      final repo = memRepo();
+      expect(() => repo.incrementHabit('nope'), throwsStateError);
+      repo.close();
+    });
+  });
+
   group('durability across a real reopen (file-backed)', () {
     late Directory dir;
     setUp(() => dir = Directory.systemTemp.createTempSync('daydial_test'));

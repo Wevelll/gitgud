@@ -12,6 +12,8 @@ environment:
 dependencies:
   day_dial_core:
     path: ../core
+  day_dial_store:
+    path: ../store
 
 dev_dependencies:
   test: ^1.25.0

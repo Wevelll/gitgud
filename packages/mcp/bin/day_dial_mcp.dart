@@ -1,15 +1,17 @@
 import 'dart:io';
 
 import 'package:day_dial_mcp/day_dial_mcp.dart';
+import 'package:day_dial_store/day_dial_store.dart';
 
 /// Dev harness for the Day-Dial MCP server.
 ///
 /// Runs the tool layer over an in-memory store so you can point Claude
 /// Desktop/Code at it today:
 ///
-///   dart run day_dial_mcp             # stdio (default; zero-config)
+///   dart run day_dial_mcp             # stdio, in-memory (default)
+///   dart run day_dial_mcp --db day.db # stdio, persisted to SQLite
 ///   dart run day_dial_mcp --http      # Streamable HTTP on 127.0.0.1
-///   dart run day_dial_mcp --http --port 7337 --token secret
+///   dart run day_dial_mcp --http --port 7337 --token secret --db day.db
 ///
 /// NOTE: this harness uses [AllowAllConsent] because a bare CLI process has no
 /// UI to prompt on. In the shipping product the desktop app **embeds** this
@@ -19,8 +21,14 @@ Future<void> main(List<String> args) async {
   final useHttp = args.contains('--http');
   final port = _intFlag(args, '--port') ?? 0;
   final token = _stringFlag(args, '--token');
+  final dbPath = _stringFlag(args, '--db');
 
-  final repo = InMemoryDayRepository(profiles: [defaultWeekdayProfile()]);
+  // With --db the day persists to SQLite (seeded once on first run); without it,
+  // state is in-memory and lost on exit.
+  final DayRepository repo = dbPath != null
+      ? SqliteDayRepository.open(
+          path: dbPath, seedIfEmpty: [defaultWeekdayProfile()])
+      : InMemoryDayRepository(profiles: [defaultWeekdayProfile()]);
   final server = McpServer(DayDialTools(repo, const AllowAllConsent()));
 
   if (useHttp) {

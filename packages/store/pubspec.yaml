@@ -1,0 +1,18 @@
+name: day_dial_store
+description: >-
+  SQLite-backed persistence for Day-Dial. Implements core's DayRepository over a
+  local SQLite database (SPEC §5). Desktop/native; not for web (which uses an
+  IndexedDB store instead).
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  day_dial_core:
+    path: ../core
+  sqlite3: ^2.4.0
+
+dev_dependencies:
+  test: ^1.25.0

@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:day_dial_core/day_dial_core.dart';
 import 'package:flutter/material.dart';
 
+import '../agent/agent_host.dart';
 import '../painters/dial_painter.dart';
 import '../widgets/dial_view.dart';
+import 'agent_screen.dart';
 import 'stats_screen.dart';
 
 /// The main dial screen: the dial plus its controls, a resize editor, and the
@@ -12,9 +14,14 @@ import 'stats_screen.dart';
 /// [DayRepository] (CLAUDE.md: the UI is wiring; logic + persistence live
 /// behind the repository).
 class DialScreen extends StatefulWidget {
-  const DialScreen({super.key, required this.repository});
+  const DialScreen({
+    super.key,
+    required this.repository,
+    required this.agentHost,
+  });
 
   final DayRepository repository;
+  final AgentHost agentHost;
 
   @override
   State<DialScreen> createState() => _DialScreenState();
@@ -326,6 +333,12 @@ class _DialScreenState extends State<DialScreen> {
     ).push(MaterialPageRoute(builder: (_) => StatsScreen(repository: _repo)));
   }
 
+  void _openAgent() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => AgentScreen(host: widget.agentHost)),
+    );
+  }
+
   Widget _header(Segment cur) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -354,11 +367,16 @@ class _DialScreenState extends State<DialScreen> {
             ],
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 4),
         IconButton(
           tooltip: 'Plan vs actual',
           onPressed: _openStats,
           icon: const Icon(Icons.insights),
+        ),
+        IconButton(
+          tooltip: 'Agent',
+          onPressed: _openAgent,
+          icon: const Icon(Icons.smart_toy_outlined),
         ),
         const SizedBox(width: 4),
         SegmentedButton<DialMode>(

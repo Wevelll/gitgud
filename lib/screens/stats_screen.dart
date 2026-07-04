@@ -4,6 +4,7 @@ import 'package:day_dial_core/day_dial_core.dart';
 import 'package:flutter/material.dart';
 
 import '../painters/dial_painter.dart' show parseHexColor;
+import 'history_screen.dart';
 
 /// The range a stats view covers.
 enum StatsRange { day, week, month }
@@ -67,6 +68,17 @@ class _StatsScreenState extends State<StatsScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         title: const Text('Plan vs actual'),
+        actions: [
+          IconButton(
+            tooltip: 'History',
+            icon: const Icon(Icons.history),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => HistoryScreen(repository: widget.repository),
+              ),
+            ),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Center(

@@ -58,4 +58,26 @@ void main() {
       file: 'compass_2330.png',
     );
   });
+
+  testWidgets('clock at 15:00 with logged actuals on the inner ring', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      host(
+        DialView(
+          profile: testProfile(),
+          nowMin: 900,
+          mode: DialMode.clock,
+          actuals: const [
+            ActualArc(startMin: 540, endMin: 660, colorHex: '#2E8B8B'),
+            ActualArc(startMin: 840, endMin: 900, colorHex: '#3E7CB1'),
+          ],
+        ),
+      ),
+    );
+    await expectLater(
+      find.byType(DialView),
+      matchesGoldenFile('goldens/actuals_1500.png'),
+    );
+  });
 }

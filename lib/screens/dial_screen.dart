@@ -27,14 +27,23 @@ class _DialScreenState extends State<DialScreen> {
   late List<TaskCompletion> _completions;
   late List<Habit> _habits;
   late List<HabitEvent> _habitEvents;
+  late List<TimeLog> _logs;
 
   DialMode _mode = DialMode.compass;
   bool _live = true;
   int _nowMin = _minuteOfNow();
   String? _selectedId;
 
+  // In-progress tracking session (null when idle). Lives only in memory; a
+  // completed session is written to the repository on stop.
+  String? _trackStartTs;
+  String? _trackCategory;
+  String? _trackSegmentId;
+
   final CivilDate _today = CivilDate.fromDateTime(DateTime.now());
   Timer? _timer;
+
+  bool get _tracking => _trackStartTs != null;
 
   static int _minuteOfNow() {
     final n = DateTime.now();
@@ -54,12 +63,15 @@ class _DialScreenState extends State<DialScreen> {
     _completions = _repo.completions();
     _habits = _repo.habits();
     _habitEvents = _repo.habitEvents();
+    _logs = _repo.logs();
   }
 
   void _startClock() {
     _timer?.cancel();
-    if (!_live) return;
-    _timer = Timer.periodic(const Duration(seconds: 10), (_) {
+    // Tick every second while tracking (live elapsed), else once a minute-ish.
+    final period = Duration(seconds: _tracking ? 1 : 10);
+    if (!_live && !_tracking) return;
+    _timer = Timer.periodic(period, (_) {
       if (mounted) setState(() => _nowMin = _minuteOfNow());
     });
   }
@@ -196,6 +208,82 @@ class _DialScreenState extends State<DialScreen> {
     setState(() => _tasks = _repo.tasks());
   }
 
+  // ---- tracking ----
+
+  void _startTracking() {
+    final seg = _profile.segmentAt(_minuteOfNow());
+    setState(() {
+      _trackStartTs = DateTime.now().toUtc().toIso8601String();
+      _trackCategory = seg.name;
+      _trackSegmentId = seg.id;
+      _startClock();
+    });
+  }
+
+  void _stopTracking() {
+    final start = _trackStartTs;
+    if (start == null) return;
+    _repo.logActual(
+      category: _trackCategory!,
+      segmentId: _trackSegmentId,
+      startTs: start,
+      endTs: DateTime.now().toUtc().toIso8601String(),
+    );
+    setState(() {
+      _trackStartTs = null;
+      _trackCategory = null;
+      _trackSegmentId = null;
+      _logs = _repo.logs();
+      _startClock();
+    });
+  }
+
+  Duration get _elapsed => _trackStartTs == null
+      ? Duration.zero
+      : DateTime.now().difference(DateTime.parse(_trackStartTs!));
+
+  static String _mmss(Duration d) {
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    final h = d.inHours;
+    return h > 0 ? '$h:$m:$s' : '$m:$s';
+  }
+
+  int _localMinuteOfDay(DateTime instant) {
+    final l = instant.toLocal();
+    return l.hour * 60 + l.minute;
+  }
+
+  String _colorForCategory(String category) {
+    for (final s in _profile.segments) {
+      if (s.name == category) return s.colorHex;
+    }
+    return '#F2E9D8';
+  }
+
+  /// Today's logged actuals as dial arcs, plus the in-progress session (if any).
+  List<ActualArc> _actualArcs() {
+    final arcs = <ActualArc>[
+      for (final log in _logs)
+        if (log.date == _today)
+          ActualArc(
+            startMin: _localMinuteOfDay(log.start),
+            endMin: _localMinuteOfDay(log.end),
+            colorHex: _colorForCategory(log.category),
+          ),
+    ];
+    if (_tracking) {
+      arcs.add(
+        ActualArc(
+          startMin: _localMinuteOfDay(DateTime.parse(_trackStartTs!)),
+          endMin: _minuteOfNow(),
+          colorHex: _colorForCategory(_trackCategory!),
+        ),
+      );
+    }
+    return arcs;
+  }
+
   @override
   Widget build(BuildContext context) {
     final cur = _profile.segmentAt(_nowMin);
@@ -212,6 +300,8 @@ class _DialScreenState extends State<DialScreen> {
                   _header(cur),
                   const SizedBox(height: 16),
                   _dialCard(),
+                  const SizedBox(height: 12),
+                  _trackingCard(cur),
                   const SizedBox(height: 16),
                   _liveControls(),
                   const SizedBox(height: 12),
@@ -279,7 +369,75 @@ class _DialScreenState extends State<DialScreen> {
         nowMin: _nowMin,
         mode: _mode,
         selectedSegmentId: _selectedId,
+        actuals: _actualArcs(),
         onSegmentTapped: (id) => setState(() => _selectedId = id),
+      ),
+    );
+  }
+
+  Widget _trackingCard(Segment cur) {
+    final tracking = _tracking;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0E1322),
+        borderRadius: BorderRadius.circular(12),
+        border: tracking
+            ? Border.all(
+                color: parseHexColor(_colorForCategory(_trackCategory!)),
+              )
+            : null,
+      ),
+      child: Row(
+        children: [
+          if (tracking) ...[
+            Icon(
+              Icons.fiber_manual_record,
+              size: 12,
+              color: parseHexColor(_colorForCategory(_trackCategory!)),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Expanded(
+            child: tracking
+                ? Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          'Tracking ${_trackCategory!}',
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: false,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _mmss(_elapsed),
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.6),
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ],
+                  )
+                : Text(
+                    'Track time for “${cur.name}”',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
+                    ),
+                  ),
+          ),
+          const SizedBox(width: 8),
+          if (tracking)
+            FilledButton(onPressed: _stopTracking, child: const Text('Stop'))
+          else
+            FilledButton.tonalIcon(
+              onPressed: _startTracking,
+              icon: const Icon(Icons.play_arrow, size: 18),
+              label: const Text('Start'),
+            ),
+        ],
       ),
     );
   }

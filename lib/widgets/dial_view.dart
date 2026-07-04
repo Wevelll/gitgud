@@ -15,6 +15,7 @@ class DialView extends StatelessWidget {
     required this.mode,
     this.selectedSegmentId,
     this.onSegmentTapped,
+    this.actuals = const [],
     this.palette = DialPalette.dark,
   });
 
@@ -25,6 +26,9 @@ class DialView extends StatelessWidget {
 
   /// Called with the tapped segment's id (null taps — the hub — are ignored).
   final ValueChanged<String>? onSegmentTapped;
+
+  /// Logged actuals to overlay on the inner ring.
+  final List<ActualArc> actuals;
   final DialPalette palette;
 
   @override
@@ -46,6 +50,7 @@ class DialView extends StatelessWidget {
                 mode: mode,
                 palette: palette,
                 selectedSegmentId: selectedSegmentId,
+                actuals: actuals,
               ),
             ),
           );

@@ -101,4 +101,24 @@ void main() {
 
     await tester.pumpWidget(const SizedBox());
   });
+
+  testWidgets('start then stop tracking writes one actual', (tester) async {
+    final repo = testRepository();
+    await tester.pumpWidget(DayDialApp(repository: repo));
+    await tester.pump();
+
+    expect(repo.logs(), isEmpty);
+    await tester.ensureVisible(find.text('Start'));
+    await tester.pump();
+    await tester.tap(find.text('Start'));
+    await tester.pump();
+
+    expect(find.text('Stop'), findsOneWidget); // now tracking
+    await tester.tap(find.text('Stop'));
+    await tester.pump();
+
+    expect(repo.logs(), hasLength(1)); // an actual was logged
+
+    await tester.pumpWidget(const SizedBox());
+  });
 }

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:day_dial_core/day_dial_core.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 
 /// How the dial renders time (SPEC §2.2).
@@ -35,6 +36,7 @@ class DialPainter extends CustomPainter {
     required this.mode,
     required this.palette,
     this.selectedSegmentId,
+    this.actuals = const [],
   });
 
   final DayProfile profile;
@@ -43,11 +45,16 @@ class DialPainter extends CustomPainter {
   final DialPalette palette;
   final String? selectedSegmentId;
 
+  /// Logged actuals for the day, drawn as a thin inner ring against the plan.
+  final List<ActualArc> actuals;
+
   // Reference radii (prototype's 360×360 frame); scaled by `f` at paint time.
   static const _ro = 150.0; // segment outer
   static const _ri = 96.0; // segment inner
   static const _rl = 123.0; // label radius
   static const _hub = 82.0; // center hub
+  static const _actIn = 84.0; // actual-ring inner
+  static const _actOut = 93.0; // actual-ring outer
   static const _tickIn = 152.0;
   static const _tickOut = 160.0;
   static const _tickMaj = 167.0;
@@ -86,6 +93,7 @@ class DialPainter extends CustomPainter {
     canvas.translate(-center.dx, -center.dy);
 
     _drawWedges(canvas, f, pt);
+    _drawActuals(canvas, f, pt);
     _drawTicks(canvas, pt);
     _drawLabels(canvas, thetaDeg, pt);
     _drawNumerals(canvas, thetaDeg, pt);
@@ -107,7 +115,7 @@ class DialPainter extends CustomPainter {
       final sweep = _timeAngleDeg(seg.durationMin);
       final a1 = a0 + sweep;
       final selected = seg.id == selectedSegmentId;
-      final path = _sectorPath(pt, a0, a1, f, sweep);
+      final path = _ringSector(pt, a0, a1, _ri, _ro, f, sweep);
       canvas.drawPath(
         path,
         Paint()
@@ -126,28 +134,58 @@ class DialPainter extends CustomPainter {
     }
   }
 
-  /// A ring sector from [a0] to [a1] between the inner and outer radii. [pt]
-  /// scales reference radii by [f]; arc radii are scaled to match.
-  Path _sectorPath(
+  /// A ring sector from [a0] to [a1] between reference radii [rInU]..[rOutU].
+  /// [pt] scales reference radii by [f]; arc radii are scaled to match.
+  Path _ringSector(
     Offset Function(double, double) pt,
     double a0,
     double a1,
+    double rInU,
+    double rOutU,
     double f,
     double sweepDeg,
   ) {
     final large = sweepDeg > 180;
-    final ro = Radius.circular(_ro * f);
-    final ri = Radius.circular(_ri * f);
-    final o0 = pt(_ro, a0);
-    final o1 = pt(_ro, a1);
-    final i1 = pt(_ri, a1);
-    final i0 = pt(_ri, a0);
+    final ro = Radius.circular(rOutU * f);
+    final ri = Radius.circular(rInU * f);
+    final o0 = pt(rOutU, a0);
+    final o1 = pt(rOutU, a1);
+    final i1 = pt(rInU, a1);
+    final i0 = pt(rInU, a0);
     return Path()
       ..moveTo(o0.dx, o0.dy)
       ..arcToPoint(o1, radius: ro, largeArc: large, clockwise: true)
       ..lineTo(i1.dx, i1.dy)
       ..arcToPoint(i0, radius: ri, largeArc: large, clockwise: false)
       ..close();
+  }
+
+  /// Draws logged actuals as a thin ring just inside the planned wedges — the
+  /// "what really happened" band against "what was planned".
+  void _drawActuals(
+    Canvas canvas,
+    double f,
+    Offset Function(double, double) pt,
+  ) {
+    if (actuals.isEmpty) return;
+    // Faint track so the band reads as a ring even where nothing is logged.
+    canvas.drawPath(
+      _ringSector(pt, 0, 359.99, _actIn, _actOut, f, 359.99),
+      Paint()
+        ..style = PaintingStyle.fill
+        ..color = palette.wedgeStroke.withValues(alpha: 0.5),
+    );
+    for (final a in actuals) {
+      final sweep = _timeAngleDeg((a.endMin - a.startMin) % 1440);
+      if (sweep <= 0) continue;
+      final a0 = _timeAngleDeg(a.startMin);
+      canvas.drawPath(
+        _ringSector(pt, a0, a0 + sweep, _actIn, _actOut, f, sweep),
+        Paint()
+          ..style = PaintingStyle.fill
+          ..color = parseHexColor(a.colorHex).withValues(alpha: 0.95),
+      );
+    }
   }
 
   void _drawTicks(Canvas canvas, Offset Function(double, double) pt) {
@@ -337,7 +375,32 @@ class DialPainter extends CustomPainter {
       old.mode != mode ||
       old.profile != profile ||
       old.selectedSegmentId != selectedSegmentId ||
-      old.palette != palette;
+      old.palette != palette ||
+      !listEquals(old.actuals, actuals);
+}
+
+/// A logged actual placed on the dial: a `[startMin, endMin)` arc (minutes since
+/// midnight, may wrap) in the category's color, drawn on the inner ring.
+class ActualArc {
+  const ActualArc({
+    required this.startMin,
+    required this.endMin,
+    required this.colorHex,
+  });
+
+  final int startMin;
+  final int endMin;
+  final String colorHex;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ActualArc &&
+      other.startMin == startMin &&
+      other.endMin == endMin &&
+      other.colorHex == colorHex;
+
+  @override
+  int get hashCode => Object.hash(startMin, endMin, colorHex);
 }
 
 /// Colors for the dial, so the painter stays theme-agnostic.

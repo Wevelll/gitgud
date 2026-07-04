@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../painters/dial_painter.dart';
 import '../widgets/dial_view.dart';
+import 'stats_screen.dart';
 
 /// The main dial screen: the dial plus its controls, a resize editor, and the
 /// must-do tray. State is minimal `setState`; all reads/writes go through a
@@ -319,31 +320,47 @@ class _DialScreenState extends State<DialScreen> {
     );
   }
 
+  void _openStats() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => StatsScreen(repository: _repo)));
+  }
+
   Widget _header(Segment cur) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'YOUR DAY · 24H',
-              style: TextStyle(
-                fontSize: 11,
-                letterSpacing: 2,
-                color: Colors.white.withValues(alpha: 0.45),
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'YOUR DAY · 24H',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  letterSpacing: 2,
+                  color: Colors.white.withValues(alpha: 0.45),
+                ),
               ),
-            ),
-            Text(
-              formatMinuteOfDay(_nowMin),
-              style: const TextStyle(
-                fontSize: 20,
-                fontFeatures: [FontFeature.tabularFigures()],
+              Text(
+                formatMinuteOfDay(_nowMin),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
+        const SizedBox(width: 8),
+        IconButton(
+          tooltip: 'Plan vs actual',
+          onPressed: _openStats,
+          icon: const Icon(Icons.insights),
+        ),
+        const SizedBox(width: 4),
         SegmentedButton<DialMode>(
           segments: const [
             ButtonSegment(value: DialMode.compass, label: Text('Compass')),

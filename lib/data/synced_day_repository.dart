@@ -79,6 +79,8 @@ class SyncedDayRepository implements DayRepository {
   @override
   List<HabitEvent> habitEvents() => _cache.habitEvents();
   @override
+  SubBlockPlan subBlocks() => _cache.subBlocks();
+  @override
   DaySnapshot snapshot() => _cache.snapshot();
 
   // ---- writes (cache first, then push) --------------------------------------
@@ -132,6 +134,50 @@ class SyncedDayRepository implements DayRepository {
   }
 
   @override
+  Segment addSubBlock({
+    required String parentId,
+    required String name,
+    required String colorHex,
+    required int startMin,
+    required int endMin,
+  }) {
+    final s = _cache.addSubBlock(
+      parentId: parentId,
+      name: name,
+      colorHex: colorHex,
+      startMin: startMin,
+      endMin: endMin,
+    );
+    _push();
+    return s;
+  }
+
+  @override
+  Segment updateSubBlock(
+    String id, {
+    String? name,
+    String? colorHex,
+    int? startMin,
+    int? endMin,
+  }) {
+    final s = _cache.updateSubBlock(
+      id,
+      name: name,
+      colorHex: colorHex,
+      startMin: startMin,
+      endMin: endMin,
+    );
+    _push();
+    return s;
+  }
+
+  @override
+  void deleteSubBlock(String id) {
+    _cache.deleteSubBlock(id);
+    _push();
+  }
+
+  @override
   RecurringTask addRecurringTask({
     required String label,
     required Recurrence recurrence,
@@ -144,6 +190,35 @@ class SyncedDayRepository implements DayRepository {
     );
     _push();
     return t;
+  }
+
+  @override
+  RecurringTask updateRecurringTask(
+    String id, {
+    String? label,
+    String? colorHex,
+    Recurrence? recurrence,
+  }) {
+    final t = _cache.updateRecurringTask(
+      id,
+      label: label,
+      colorHex: colorHex,
+      recurrence: recurrence,
+    );
+    _push();
+    return t;
+  }
+
+  @override
+  void setTaskArchived(String id, {required bool archived}) {
+    _cache.setTaskArchived(id, archived: archived);
+    _push();
+  }
+
+  @override
+  void deleteRecurringTask(String id) {
+    _cache.deleteRecurringTask(id);
+    _push();
   }
 
   @override

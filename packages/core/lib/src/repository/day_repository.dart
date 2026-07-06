@@ -4,6 +4,7 @@ import '../models/recurrence.dart';
 import '../models/recurring_task.dart';
 import '../models/ring_edit.dart';
 import '../models/segment.dart';
+import '../models/sub_block.dart';
 import '../models/time_log.dart';
 import '../time/civil_date.dart';
 import 'day_snapshot.dart';
@@ -41,6 +42,35 @@ abstract interface class DayRepository {
 
   void deleteBlock(String id);
 
+  /// The sparse sub-block overlay: parent-segment id → its sub-blocks (SPEC §2
+  /// nested detail).
+  SubBlockPlan subBlocks();
+
+  /// Adds a sub-block inside [parentId] (a segment of the active profile) and
+  /// returns the created span. Throws [StateError] if the parent is unknown to
+  /// the active profile, or [InvalidSubBlockException] if the result would fall
+  /// outside the parent or overlap a sibling.
+  Segment addSubBlock({
+    required String parentId,
+    required String name,
+    required String colorHex,
+    required int startMin,
+    required int endMin,
+  });
+
+  /// Updates a sub-block's name/color/bounds; returns the updated span. Throws
+  /// [StateError] if unknown, or [InvalidSubBlockException] if invalid.
+  Segment updateSubBlock(
+    String id, {
+    String? name,
+    String? colorHex,
+    int? startMin,
+    int? endMin,
+  });
+
+  /// Removes the sub-block [id]. Throws [StateError] if unknown.
+  void deleteSubBlock(String id);
+
   List<RecurringTask> tasks();
   List<TaskCompletion> completions();
 
@@ -49,6 +79,24 @@ abstract interface class DayRepository {
     required Recurrence recurrence,
     required String colorHex,
   });
+
+  /// Updates a task's label, color, and/or recurrence; returns the updated
+  /// task. Throws [StateError] if no such task.
+  RecurringTask updateRecurringTask(
+    String id, {
+    String? label,
+    String? colorHex,
+    Recurrence? recurrence,
+  });
+
+  /// Archives or un-archives a task. An archived task keeps its completion
+  /// history but no longer appears in the tray ([RecurringTask.isDueOn] is
+  /// false). Throws [StateError] if no such task.
+  void setTaskArchived(String id, {required bool archived});
+
+  /// Permanently removes a task and its completion history. Throws
+  /// [StateError] if no such task.
+  void deleteRecurringTask(String id);
 
   /// Marks [taskId] done on [date]; idempotent per (task, date).
   void completeTask(String taskId, CivilDate date);
@@ -130,6 +178,7 @@ class InMemoryDayRepository implements DayRepository {
     repo._logs.addAll(snapshot.logs);
     repo._habits.addAll(snapshot.habits);
     repo._habitEvents.addAll(snapshot.habitEvents);
+    repo._loadSubBlocks(snapshot.subBlocks);
     return repo;
   }
 
@@ -143,6 +192,8 @@ class InMemoryDayRepository implements DayRepository {
   final List<TimeLog> _logs = [];
   final List<Habit> _habits = [];
   final List<HabitEvent> _habitEvents = [];
+  // Sparse sub-block overlay: parent-segment id → growable list of sub-blocks.
+  final Map<String, List<Segment>> _subBlocks = {};
 
   static String Function() _sequentialIds() {
     var n = 0;
@@ -179,6 +230,7 @@ class InMemoryDayRepository implements DayRepository {
       endMin: endMin,
     );
     _profiles[_activeId] = updated;
+    _reconcileSubBlocks();
     return updated.segments.firstWhere((s) => s.id == id);
   }
 
@@ -198,12 +250,100 @@ class InMemoryDayRepository implements DayRepository {
       endMin: endMin,
     );
     _profiles[_activeId] = updated;
+    _reconcileSubBlocks();
     return updated.segments.firstWhere((s) => s.id == id);
   }
 
   @override
   void deleteBlock(String id) {
     _profiles[_activeId] = activeProfile().deleteBlock(id);
+    _reconcileSubBlocks();
+  }
+
+  // ---- sub-blocks -----------------------------------------------------------
+
+  @override
+  SubBlockPlan subBlocks() => SubBlockPlan(_subBlocks);
+
+  /// The active profile's segment [parentId], or a [StateError] if it isn't one.
+  Segment _activeSegment(String parentId) {
+    final match = activeProfile().segments.where((s) => s.id == parentId);
+    if (match.isEmpty) {
+      throw StateError('No segment "$parentId" in the active profile');
+    }
+    return match.first;
+  }
+
+  /// Locates a sub-block by id, returning its parent id and index, or throws.
+  ({String parentId, int index}) _locateSubBlock(String id) {
+    for (final entry in _subBlocks.entries) {
+      final i = entry.value.indexWhere((s) => s.id == id);
+      if (i != -1) return (parentId: entry.key, index: i);
+    }
+    throw StateError('No sub-block "$id"');
+  }
+
+  @override
+  Segment addSubBlock({
+    required String parentId,
+    required String name,
+    required String colorHex,
+    required int startMin,
+    required int endMin,
+  }) {
+    final parent = _activeSegment(parentId);
+    final child = Segment(
+      id: _idFactory(),
+      name: name,
+      colorHex: colorHex,
+      startMin: startMin,
+      endMin: endMin,
+    );
+    final siblings = _subBlocks[parentId] ?? const [];
+    validateSubBlocks(parent, [...siblings, child]); // throws if illegal
+    (_subBlocks[parentId] ??= []).add(child);
+    return child;
+  }
+
+  @override
+  Segment updateSubBlock(
+    String id, {
+    String? name,
+    String? colorHex,
+    int? startMin,
+    int? endMin,
+  }) {
+    final at = _locateSubBlock(id);
+    final parent = _activeSegment(at.parentId);
+    final list = _subBlocks[at.parentId]!;
+    final updated = list[at.index].copyWith(
+      name: name,
+      colorHex: colorHex,
+      startMin: startMin,
+      endMin: endMin,
+    );
+    final siblings = [
+      for (var i = 0; i < list.length; i++)
+        if (i == at.index) updated else list[i],
+    ];
+    validateSubBlocks(parent, siblings); // throws if illegal
+    list[at.index] = updated;
+    return updated;
+  }
+
+  @override
+  void deleteSubBlock(String id) {
+    final at = _locateSubBlock(id);
+    final list = _subBlocks[at.parentId]!..removeAt(at.index);
+    if (list.isEmpty) _subBlocks.remove(at.parentId);
+  }
+
+  /// Re-fits the overlay after a ring edit (clip cascade / drop vanished).
+  void _reconcileSubBlocks() {
+    final fitted = reconcileSubBlocks(activeProfile(), _subBlocks);
+    _subBlocks
+      ..clear()
+      ..addEntries(fitted.entries.map((e) => MapEntry(e.key, [...e.value])));
   }
 
   @override
@@ -227,6 +367,40 @@ class InMemoryDayRepository implements DayRepository {
     );
     _tasks.add(task);
     return task;
+  }
+
+  @override
+  RecurringTask updateRecurringTask(
+    String id, {
+    String? label,
+    String? colorHex,
+    Recurrence? recurrence,
+  }) {
+    final i = _tasks.indexWhere((t) => t.id == id);
+    if (i == -1) throw StateError('No task "$id"');
+    final updated = _tasks[i].copyWith(
+      label: label,
+      colorHex: colorHex,
+      recurrence: recurrence,
+    );
+    _tasks[i] = updated;
+    return updated;
+  }
+
+  @override
+  void setTaskArchived(String id, {required bool archived}) {
+    final i = _tasks.indexWhere((t) => t.id == id);
+    if (i == -1) throw StateError('No task "$id"');
+    _tasks[i] = _tasks[i].copyWith(archived: archived);
+  }
+
+  @override
+  void deleteRecurringTask(String id) {
+    final i = _tasks.indexWhere((t) => t.id == id);
+    if (i == -1) throw StateError('No task "$id"');
+    _tasks.removeAt(i);
+    // Parity with the SQLite store's task_completions ON DELETE CASCADE.
+    _completions.removeWhere((c) => c.taskId == id);
   }
 
   @override
@@ -338,6 +512,9 @@ class InMemoryDayRepository implements DayRepository {
         logs: logs(),
         habits: habits(),
         habitEvents: habitEvents(),
+        subBlocks: {
+          for (final e in _subBlocks.entries) e.key: List.unmodifiable(e.value),
+        },
       );
 
   @override
@@ -361,5 +538,12 @@ class InMemoryDayRepository implements DayRepository {
     _habitEvents
       ..clear()
       ..addAll(snapshot.habitEvents);
+    _loadSubBlocks(snapshot.subBlocks);
+  }
+
+  void _loadSubBlocks(Map<String, List<Segment>> plan) {
+    _subBlocks
+      ..clear()
+      ..addEntries(plan.entries.map((e) => MapEntry(e.key, [...e.value])));
   }
 }

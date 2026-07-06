@@ -7,6 +7,7 @@ export 'src/time/civil_date.dart';
 export 'src/models/segment.dart';
 export 'src/models/day_profile.dart';
 export 'src/models/ring_edit.dart';
+export 'src/models/sub_block.dart';
 export 'src/models/recurrence.dart';
 export 'src/models/recurring_task.dart';
 export 'src/models/habit.dart';

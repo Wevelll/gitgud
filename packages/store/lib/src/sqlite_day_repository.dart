@@ -172,6 +172,7 @@ class SqliteDayRepository implements DayRepository {
       endMin: endMin,
     );
     _writeSegments(updated);
+    _reconcileSubBlocks();
     return updated.segments.firstWhere((s) => s.id == id);
   }
 
@@ -191,12 +192,146 @@ class SqliteDayRepository implements DayRepository {
       endMin: endMin,
     );
     _writeSegments(updated);
+    _reconcileSubBlocks();
     return updated.segments.firstWhere((s) => s.id == id);
   }
 
   @override
   void deleteBlock(String id) {
     _writeSegments(activeProfile().deleteBlock(id));
+    _reconcileSubBlocks();
+  }
+
+  // ---- sub-blocks -----------------------------------------------------------
+
+  Map<String, List<Segment>> _loadSubBlockMap() {
+    final rows = _db.select(
+      'SELECT * FROM sub_segments ORDER BY parent_segment_id, sort_order',
+    );
+    final map = <String, List<Segment>>{};
+    for (final r in rows) {
+      (map[r['parent_segment_id'] as String] ??= []).add(Segment(
+        id: r['id'] as String,
+        name: r['name'] as String,
+        colorHex: r['color'] as String,
+        startMin: r['start_min'] as int,
+        endMin: r['end_min'] as int,
+      ));
+    }
+    return map;
+  }
+
+  /// Re-materializes the whole sub_segments table from [plan].
+  void _writeSubBlocks(Map<String, List<Segment>> plan) {
+    _db.execute('DELETE FROM sub_segments');
+    for (final entry in plan.entries) {
+      var order = 0;
+      for (final s in entry.value) {
+        _db.execute(
+          'INSERT INTO sub_segments '
+          '(id, parent_segment_id, start_min, end_min, name, color, sort_order)'
+          ' VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [s.id, entry.key, s.startMin, s.endMin, s.name, s.colorHex, order++],
+        );
+      }
+    }
+  }
+
+  void _reconcileSubBlocks() {
+    _writeSubBlocks(reconcileSubBlocks(activeProfile(), _loadSubBlockMap()));
+  }
+
+  Segment _activeSegment(String parentId) {
+    final match = activeProfile().segments.where((s) => s.id == parentId);
+    if (match.isEmpty) {
+      throw StateError('No segment "$parentId" in the active profile');
+    }
+    return match.first;
+  }
+
+  @override
+  SubBlockPlan subBlocks() => SubBlockPlan(_loadSubBlockMap());
+
+  @override
+  Segment addSubBlock({
+    required String parentId,
+    required String name,
+    required String colorHex,
+    required int startMin,
+    required int endMin,
+  }) {
+    final parent = _activeSegment(parentId);
+    final child = Segment(
+      id: _idFactory(),
+      name: name,
+      colorHex: colorHex,
+      startMin: startMin,
+      endMin: endMin,
+    );
+    final siblings = _loadSubBlockMap()[parentId] ?? const <Segment>[];
+    validateSubBlocks(parent, [...siblings, child]); // throws if illegal
+    _db.execute(
+      'INSERT INTO sub_segments '
+      '(id, parent_segment_id, start_min, end_min, name, color, sort_order) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [
+        child.id,
+        parentId,
+        child.startMin,
+        child.endMin,
+        child.name,
+        child.colorHex,
+        siblings.length,
+      ],
+    );
+    return child;
+  }
+
+  @override
+  Segment updateSubBlock(
+    String id, {
+    String? name,
+    String? colorHex,
+    int? startMin,
+    int? endMin,
+  }) {
+    final map = _loadSubBlockMap();
+    String? parentId;
+    Segment? old;
+    for (final entry in map.entries) {
+      for (final s in entry.value) {
+        if (s.id == id) {
+          parentId = entry.key;
+          old = s;
+        }
+      }
+    }
+    if (old == null) throw StateError('No sub-block "$id"');
+    final parent = _activeSegment(parentId!);
+    final updated = old.copyWith(
+      name: name,
+      colorHex: colorHex,
+      startMin: startMin,
+      endMin: endMin,
+    );
+    final siblings = [
+      for (final s in map[parentId]!)
+        if (s.id == id) updated else s,
+    ];
+    validateSubBlocks(parent, siblings); // throws if illegal
+    _db.execute(
+      'UPDATE sub_segments SET start_min = ?, end_min = ?, name = ?, color = ? '
+      'WHERE id = ?',
+      [updated.startMin, updated.endMin, updated.name, updated.colorHex, id],
+    );
+    return updated;
+  }
+
+  @override
+  void deleteSubBlock(String id) {
+    final exists = _db.select('SELECT 1 FROM sub_segments WHERE id = ?', [id]);
+    if (exists.isEmpty) throw StateError('No sub-block "$id"');
+    _db.execute('DELETE FROM sub_segments WHERE id = ?', [id]);
   }
 
   // ---- recurring tasks ------------------------------------------------------
@@ -278,6 +413,57 @@ class SqliteDayRepository implements DayRepository {
       'DELETE FROM task_completions WHERE task_id = ? AND date = ?',
       [taskId, date.iso],
     );
+  }
+
+  RecurringTask _loadTask(String id) {
+    final rows = _db.select('SELECT * FROM recurring_tasks WHERE id = ?', [id]);
+    if (rows.isEmpty) throw StateError('No task "$id"');
+    final r = rows.first;
+    return RecurringTask(
+      id: r['id'] as String,
+      label: r['label'] as String,
+      colorHex: r['color'] as String,
+      recurrence: Recurrence.parse(r['recurrence_rule'] as String),
+      createdAt: r['created_at'] as String,
+      archived: (r['archived'] as int) == 1,
+    );
+  }
+
+  @override
+  RecurringTask updateRecurringTask(
+    String id, {
+    String? label,
+    String? colorHex,
+    Recurrence? recurrence,
+  }) {
+    final updated = _loadTask(id).copyWith(
+      label: label,
+      colorHex: colorHex,
+      recurrence: recurrence,
+    );
+    _db.execute(
+      'UPDATE recurring_tasks SET label = ?, color = ?, recurrence_rule = ? '
+      'WHERE id = ?',
+      [updated.label, updated.colorHex, updated.recurrence.encode(), id],
+    );
+    return updated;
+  }
+
+  @override
+  void setTaskArchived(String id, {required bool archived}) {
+    _loadTask(id); // existence check (throws if unknown)
+    _db.execute(
+      'UPDATE recurring_tasks SET archived = ? WHERE id = ?',
+      [archived ? 1 : 0, id],
+    );
+  }
+
+  @override
+  void deleteRecurringTask(String id) {
+    _loadTask(id); // existence check (throws if unknown)
+    // task_completions.task_id is ON DELETE CASCADE (foreign_keys = ON), so the
+    // task's completions are removed with it.
+    _db.execute('DELETE FROM recurring_tasks WHERE id = ?', [id]);
   }
 
   // ---- time logs ------------------------------------------------------------
@@ -450,6 +636,7 @@ class SqliteDayRepository implements DayRepository {
         logs: logs(),
         habits: habits(),
         habitEvents: habitEvents(),
+        subBlocks: _loadSubBlockMap(),
       );
 
   @override
@@ -458,6 +645,7 @@ class SqliteDayRepository implements DayRepository {
     try {
       for (final t in const [
         'segments',
+        'sub_segments',
         'habit_events',
         'habits',
         'task_completions',
@@ -471,6 +659,7 @@ class SqliteDayRepository implements DayRepository {
         _insertProfile(p);
       }
       _setSetting('active_profile_id', snapshot.activeProfileId);
+      _writeSubBlocks(snapshot.subBlocks);
       for (final t in snapshot.tasks) {
         _db.execute(
           'INSERT INTO recurring_tasks '

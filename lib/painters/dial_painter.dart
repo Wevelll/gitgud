@@ -37,6 +37,7 @@ class DialPainter extends CustomPainter {
     required this.palette,
     this.selectedSegmentId,
     this.actuals = const [],
+    this.subBlocks = const SubBlockPlan.empty(),
   });
 
   final DayProfile profile;
@@ -47,6 +48,15 @@ class DialPainter extends CustomPainter {
 
   /// Logged actuals for the day, drawn as a thin inner ring against the plan.
   final List<ActualArc> actuals;
+
+  /// Sparse sub-block overlay. A segment "reveals" its sub-blocks — its wedge
+  /// subdivides in place into them — when it's the active (now) block or the
+  /// selected one (SPEC §2: coarse from a distance, detailed when it comes by).
+  final SubBlockPlan subBlocks;
+
+  /// Whether [seg] should show its sub-blocks: it's active or tapped-selected.
+  bool _revealed(Segment seg) =>
+      seg.id == selectedSegmentId || seg.contains(nowMin);
 
   // Reference radii (prototype's 360×360 frame); scaled by `f` at paint time.
   static const _ro = 150.0; // segment outer
@@ -131,6 +141,37 @@ class DialPainter extends CustomPainter {
           ..strokeWidth = selected ? 2 : 1.5
           ..color = selected ? palette.selectedStroke : palette.wedgeStroke,
       );
+
+      // Subdivide-in-place: overlay this block's sub-blocks over the parent
+      // colour at the same radii, so unplanned gaps show through as the parent.
+      if (_revealed(seg)) {
+        for (final sub in subBlocks.of(seg.id)) {
+          final subSweep = _timeAngleDeg(sub.durationMin);
+          final s0 = _timeAngleDeg(sub.startMin);
+          final subPath = _ringSector(
+            pt,
+            s0,
+            s0 + subSweep,
+            _ri,
+            _ro,
+            f,
+            subSweep,
+          );
+          canvas.drawPath(
+            subPath,
+            Paint()
+              ..style = PaintingStyle.fill
+              ..color = parseHexColor(sub.colorHex),
+          );
+          canvas.drawPath(
+            subPath,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1
+              ..color = palette.wedgeStroke,
+          );
+        }
+      }
     }
   }
 
@@ -208,6 +249,29 @@ class DialPainter extends CustomPainter {
     Offset Function(double, double) pt,
   ) {
     for (final seg in profile.segments) {
+      // When a block is revealed and subdivided, label its sub-blocks instead
+      // of the parent (the parent colour is now just the gaps).
+      final subs = _revealed(seg) ? subBlocks.of(seg.id) : const <Segment>[];
+      if (subs.isNotEmpty) {
+        for (final sub in subs) {
+          if (sub.durationMin < 45) continue; // no room on thin sub-blocks
+          final am =
+              _timeAngleDeg(sub.startMin) + _timeAngleDeg(sub.durationMin) / 2;
+          _drawUprightText(
+            canvas,
+            pt(_rl, am),
+            thetaDeg,
+            sub.name,
+            TextStyle(
+              color: palette.label,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          );
+        }
+        continue;
+      }
+
       final sweep = _timeAngleDeg(seg.durationMin);
       if (seg.durationMin < 55) continue; // hide labels on thin wedges
       final am = _timeAngleDeg(seg.startMin) + sweep / 2;
@@ -376,6 +440,7 @@ class DialPainter extends CustomPainter {
       old.profile != profile ||
       old.selectedSegmentId != selectedSegmentId ||
       old.palette != palette ||
+      old.subBlocks != subBlocks ||
       !listEquals(old.actuals, actuals);
 }
 

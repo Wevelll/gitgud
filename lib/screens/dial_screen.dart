@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:day_dial_core/day_dial_core.dart';
 import 'package:flutter/material.dart';
@@ -31,6 +32,7 @@ class _DialScreenState extends State<DialScreen> {
   DayRepository get _repo => widget.repository;
 
   late DayProfile _profile;
+  late SubBlockPlan _subBlocks;
   late List<RecurringTask> _tasks;
   late List<TaskCompletion> _completions;
   late List<Habit> _habits;
@@ -67,6 +69,7 @@ class _DialScreenState extends State<DialScreen> {
 
   void _loadFromRepo() {
     _profile = _repo.activeProfile();
+    _subBlocks = _repo.subBlocks();
     _tasks = _repo.tasks();
     _completions = _repo.completions();
     _habits = _repo.habits();
@@ -196,16 +199,77 @@ class _DialScreenState extends State<DialScreen> {
       setState(() {
         _profile = _repo.activeProfile();
         _selectedId = null;
+        _subBlocks = _repo.subBlocks(); // deleting a parent drops its detail
       });
     } on InvalidProfileException catch (e) {
       _showError(e.message);
     }
   }
 
+  // ---- sub-blocks (detail inside a block) ----
+
+  Future<void> _addSubBlockDialog(Segment parent) async {
+    final r = await showDialog<_BlockData>(
+      context: context,
+      builder: (_) => _BlockDialog(
+        title: 'Add detail',
+        geometry: true,
+        initialColor: parent.colorHex,
+        initialStartMin: parent.startMin,
+        initialEndMin: normalizeMinute(parent.startMin + 60),
+      ),
+    );
+    if (r == null) return;
+    try {
+      _repo.addSubBlock(
+        parentId: parent.id,
+        name: r.name,
+        colorHex: r.colorHex,
+        startMin: r.startMin!,
+        endMin: r.endMin!,
+      );
+      setState(() => _subBlocks = _repo.subBlocks());
+    } on InvalidSubBlockException catch (e) {
+      _showError(e.message);
+    }
+  }
+
+  Future<void> _editSubBlockDialog(Segment sub) async {
+    final r = await showDialog<_BlockData>(
+      context: context,
+      builder: (_) => _BlockDialog(
+        title: 'Edit detail',
+        geometry: true,
+        initialName: sub.name,
+        initialColor: sub.colorHex,
+        initialStartMin: sub.startMin,
+        initialEndMin: sub.endMin,
+      ),
+    );
+    if (r == null) return;
+    try {
+      _repo.updateSubBlock(
+        sub.id,
+        name: r.name,
+        colorHex: r.colorHex,
+        startMin: r.startMin,
+        endMin: r.endMin,
+      );
+      setState(() => _subBlocks = _repo.subBlocks());
+    } on InvalidSubBlockException catch (e) {
+      _showError(e.message);
+    }
+  }
+
+  void _deleteSubBlock(String id) {
+    _repo.deleteSubBlock(id);
+    setState(() => _subBlocks = _repo.subBlocks());
+  }
+
   Future<void> _addTaskDialog() async {
     final r = await showDialog<_TaskData>(
       context: context,
-      builder: (_) => const _AddTaskDialog(),
+      builder: (_) => const _TaskDialog(),
     );
     if (r == null) return;
     _repo.addRecurringTask(
@@ -214,6 +278,34 @@ class _DialScreenState extends State<DialScreen> {
       colorHex: r.colorHex,
     );
     setState(() => _tasks = _repo.tasks());
+  }
+
+  Future<void> _editTaskDialog(RecurringTask task) async {
+    final r = await showDialog<_TaskData>(
+      context: context,
+      builder: (_) => _TaskDialog(initial: task),
+    );
+    if (r == null) return;
+    _repo.updateRecurringTask(
+      task.id,
+      label: r.label,
+      recurrence: r.recurrence,
+      colorHex: r.colorHex,
+    );
+    setState(() => _tasks = _repo.tasks());
+  }
+
+  void _archiveTask(String id) {
+    _repo.setTaskArchived(id, archived: true);
+    setState(() => _tasks = _repo.tasks());
+  }
+
+  void _deleteTask(String id) {
+    _repo.deleteRecurringTask(id);
+    setState(() {
+      _tasks = _repo.tasks();
+      _completions = _repo.completions();
+    });
   }
 
   // ---- tracking ----
@@ -405,6 +497,7 @@ class _DialScreenState extends State<DialScreen> {
         mode: _mode,
         selectedSegmentId: _selectedId,
         actuals: _actualArcs(),
+        subBlocks: _subBlocks,
         onSegmentTapped: (id) => setState(() => _selectedId = id),
       ),
     );
@@ -564,59 +657,148 @@ class _DialScreenState extends State<DialScreen> {
           : Builder(
               builder: (_) {
                 final seg = _profile.segments[_indexOf(id)];
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            seg.name,
-                            style: TextStyle(
-                              color: parseHexColor(seg.colorHex),
-                              fontWeight: FontWeight.w600,
-                            ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                seg.name,
+                                style: TextStyle(
+                                  color: parseHexColor(seg.colorHex),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                '${formatMinuteOfDay(seg.startMin)}–'
+                                '${formatMinuteOfDay(seg.endMin)} · '
+                                '${formatDuration(seg.durationMin)}',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.45),
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures(),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
-                          Text(
-                            '${formatMinuteOfDay(seg.startMin)}–'
-                            '${formatMinuteOfDay(seg.endMin)} · '
-                            '${formatDuration(seg.durationMin)}',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.45),
-                              fontFeatures: const [
-                                FontFeature.tabularFigures(),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                        IconButton(
+                          tooltip: 'Shorten',
+                          onPressed: () => _resizeSelected(-15),
+                          icon: const Icon(Icons.remove_circle_outline),
+                        ),
+                        IconButton(
+                          tooltip: 'Lengthen',
+                          onPressed: () => _resizeSelected(15),
+                          icon: const Icon(Icons.add_circle_outline),
+                        ),
+                        IconButton(
+                          tooltip: 'Rename / recolor',
+                          onPressed: () => _editBlockDialog(seg),
+                          icon: const Icon(Icons.edit_outlined),
+                        ),
+                        IconButton(
+                          tooltip: 'Delete',
+                          onPressed: _deleteSelected,
+                          icon: const Icon(Icons.delete_outline),
+                          color: const Color(0xFFB5624F),
+                        ),
+                      ],
                     ),
-                    IconButton(
-                      tooltip: 'Shorten',
-                      onPressed: () => _resizeSelected(-15),
-                      icon: const Icon(Icons.remove_circle_outline),
-                    ),
-                    IconButton(
-                      tooltip: 'Lengthen',
-                      onPressed: () => _resizeSelected(15),
-                      icon: const Icon(Icons.add_circle_outline),
-                    ),
-                    IconButton(
-                      tooltip: 'Rename / recolor',
-                      onPressed: () => _editBlockDialog(seg),
-                      icon: const Icon(Icons.edit_outlined),
-                    ),
-                    IconButton(
-                      tooltip: 'Delete',
-                      onPressed: _deleteSelected,
-                      icon: const Icon(Icons.delete_outline),
-                      color: const Color(0xFFB5624F),
-                    ),
+                    _subBlockSection(seg),
                   ],
                 );
               },
             ),
+    );
+  }
+
+  /// The "detail inside" editor for the selected block: its sub-blocks plus an
+  /// add affordance. Reveals live on the dial as the block subdivides in place.
+  Widget _subBlockSection(Segment parent) {
+    final subs = _subBlocks.of(parent.id);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'DETAIL INSIDE',
+              style: TextStyle(
+                fontSize: 10,
+                letterSpacing: 1.5,
+                color: Colors.white.withValues(alpha: 0.45),
+              ),
+            ),
+            TextButton.icon(
+              onPressed: () => _addSubBlockDialog(parent),
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('Add detail'),
+            ),
+          ],
+        ),
+        if (subs.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              'No detail yet — split this block into tasks',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.45),
+                fontSize: 12,
+              ),
+            ),
+          ),
+        for (final sub in subs) _subBlockRow(sub),
+      ],
+    );
+  }
+
+  Widget _subBlockRow(Segment sub) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: parseHexColor(sub.colorHex),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: Text(sub.name, overflow: TextOverflow.ellipsis)),
+          Text(
+            '${formatMinuteOfDay(sub.startMin)}–${formatMinuteOfDay(sub.endMin)}',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.45),
+              fontSize: 12,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            tooltip: 'Edit detail',
+            onPressed: () => _editSubBlockDialog(sub),
+            icon: const Icon(Icons.edit_outlined, size: 18),
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            tooltip: 'Delete detail',
+            onPressed: () => _deleteSubBlock(sub.id),
+            icon: const Icon(Icons.delete_outline, size: 18),
+            color: const Color(0xFFB5624F),
+          ),
+        ],
+      ),
     );
   }
 
@@ -748,34 +930,65 @@ class _DialScreenState extends State<DialScreen> {
               style: TextStyle(color: Colors.white.withValues(alpha: 0.45)),
             ),
           for (final item in tray)
-            InkWell(
-              onTap: () => _toggleTask(item.task.id, item.doneToday),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  children: [
-                    Icon(
-                      item.doneToday
-                          ? Icons.check_box
-                          : Icons.check_box_outline_blank,
-                      size: 20,
-                      color: parseHexColor(item.task.colorHex),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      item.task.label,
-                      style: TextStyle(
-                        decoration: item.doneToday
-                            ? TextDecoration.lineThrough
-                            : null,
-                        color: item.doneToday
-                            ? Colors.white.withValues(alpha: 0.4)
-                            : Colors.white,
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _toggleTask(item.task.id, item.doneToday),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Icon(
+                            item.doneToday
+                                ? Icons.check_box
+                                : Icons.check_box_outline_blank,
+                            size: 20,
+                            color: parseHexColor(item.task.colorHex),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              item.task.label,
+                              style: TextStyle(
+                                decoration: item.doneToday
+                                    ? TextDecoration.lineThrough
+                                    : null,
+                                color: item.doneToday
+                                    ? Colors.white.withValues(alpha: 0.4)
+                                    : Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  tooltip: 'Task actions',
+                  icon: Icon(
+                    Icons.more_vert,
+                    size: 18,
+                    color: Colors.white.withValues(alpha: 0.5),
+                  ),
+                  onSelected: (v) {
+                    switch (v) {
+                      case 'edit':
+                        _editTaskDialog(item.task);
+                      case 'archive':
+                        _archiveTask(item.task.id);
+                      case 'delete':
+                        _deleteTask(item.task.id);
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'edit', child: Text('Edit…')),
+                    PopupMenuItem(value: 'archive', child: Text('Archive')),
+                    PopupMenuItem(value: 'delete', child: Text('Delete')),
                   ],
                 ),
-              ),
+              ],
             ),
         ],
       ),
@@ -925,12 +1138,16 @@ class _BlockDialog extends StatefulWidget {
     required this.geometry,
     this.initialName,
     this.initialColor,
+    this.initialStartMin,
+    this.initialEndMin,
   });
 
   final String title;
   final bool geometry;
   final String? initialName;
   final String? initialColor;
+  final int? initialStartMin;
+  final int? initialEndMin;
 
   @override
   State<_BlockDialog> createState() => _BlockDialogState();
@@ -938,8 +1155,16 @@ class _BlockDialog extends StatefulWidget {
 
 class _BlockDialogState extends State<_BlockDialog> {
   late final _name = TextEditingController(text: widget.initialName ?? '');
-  final _start = TextEditingController(text: '09:00');
-  final _end = TextEditingController(text: '10:00');
+  late final _start = TextEditingController(
+    text: widget.initialStartMin != null
+        ? formatMinuteOfDay(widget.initialStartMin!)
+        : '09:00',
+  );
+  late final _end = TextEditingController(
+    text: widget.initialEndMin != null
+        ? formatMinuteOfDay(widget.initialEndMin!)
+        : '10:00',
+  );
   late String _color = widget.initialColor ?? _kPalette.first;
   String? _error;
 
@@ -1028,7 +1253,7 @@ class _BlockDialogState extends State<_BlockDialog> {
   }
 }
 
-/// Result of the add-task dialog.
+/// Result of the task dialog.
 class _TaskData {
   const _TaskData(this.label, this.recurrence, this.colorHex);
   final String label;
@@ -1036,28 +1261,106 @@ class _TaskData {
   final String colorHex;
 }
 
-/// Create a recurring task: a label, daily or weekly (with weekday chips), and
-/// a color.
-class _AddTaskDialog extends StatefulWidget {
-  const _AddTaskDialog();
+/// The recurrence shapes the dialog can build (SPEC §3). Mirrors the [Recurrence]
+/// subtypes in core.
+enum _RecKind { daily, weekly, interval, dates }
+
+/// Add or edit a recurring task: a label, a recurrence rule (every day, certain
+/// weekdays, every N days, or specific dates), and a color. Pass [initial] to
+/// edit an existing task; omit it to create a new one.
+class _TaskDialog extends StatefulWidget {
+  const _TaskDialog({this.initial});
+
+  final RecurringTask? initial;
 
   @override
-  State<_AddTaskDialog> createState() => _AddTaskDialogState();
+  State<_TaskDialog> createState() => _TaskDialogState();
 }
 
-class _AddTaskDialogState extends State<_AddTaskDialog> {
-  final _label = TextEditingController();
-  bool _weekly = false;
-  final Set<int> _days = {}; // ISO weekdays 1..7
-  String _color = _kPalette[4];
+class _TaskDialogState extends State<_TaskDialog> {
+  late final TextEditingController _label;
+  late final TextEditingController _interval;
+  late _RecKind _kind;
+  final Set<int> _days = {}; // ISO weekdays 1..7 (weekly)
+  final SplayTreeSet<CivilDate> _dates = SplayTreeSet(); // specific dates
+  late CivilDate _anchor; // interval anchor (kept when editing)
+  late String _color;
   String? _error;
 
   static const _dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   @override
+  void initState() {
+    super.initState();
+    final task = widget.initial;
+    _label = TextEditingController(text: task?.label ?? '');
+    _color = task?.colorHex ?? _kPalette[4];
+    _anchor = CivilDate.fromDateTime(DateTime.now());
+    var intervalN = 2;
+
+    switch (task?.recurrence) {
+      case WeeklyRecurrence(:final weekdays):
+        _kind = _RecKind.weekly;
+        _days.addAll(weekdays);
+      case IntervalRecurrence(:final intervalDays, :final anchor):
+        _kind = _RecKind.interval;
+        intervalN = intervalDays;
+        _anchor = anchor;
+      case DatesRecurrence(:final dates):
+        _kind = _RecKind.dates;
+        _dates.addAll(dates);
+      case _:
+        _kind = _RecKind.daily;
+    }
+    _interval = TextEditingController(text: '$intervalN');
+  }
+
+  @override
   void dispose() {
     _label.dispose();
+    _interval.dispose();
     super.dispose();
+  }
+
+  Future<void> _addDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 5),
+    );
+    if (picked != null) {
+      setState(() => _dates.add(CivilDate.fromDateTime(picked)));
+    }
+  }
+
+  /// Builds the recurrence from the current inputs, or sets [_error] and returns
+  /// null if the inputs are incomplete.
+  Recurrence? _buildRecurrence() {
+    switch (_kind) {
+      case _RecKind.daily:
+        return const DailyRecurrence();
+      case _RecKind.weekly:
+        if (_days.isEmpty) {
+          _error = 'Pick at least one weekday';
+          return null;
+        }
+        return WeeklyRecurrence(_days);
+      case _RecKind.interval:
+        final n = int.tryParse(_interval.text.trim());
+        if (n == null || n < 1) {
+          _error = 'Interval must be a whole number of days ≥ 1';
+          return null;
+        }
+        return IntervalRecurrence(n, _anchor);
+      case _RecKind.dates:
+        if (_dates.isEmpty) {
+          _error = 'Add at least one date';
+          return null;
+        }
+        return DatesRecurrence(_dates.toSet());
+    }
   }
 
   void _submit() {
@@ -1066,74 +1369,125 @@ class _AddTaskDialogState extends State<_AddTaskDialog> {
       setState(() => _error = 'Name is required');
       return;
     }
-    Recurrence recurrence;
-    if (_weekly) {
-      if (_days.isEmpty) {
-        setState(() => _error = 'Pick at least one weekday');
-        return;
-      }
-      recurrence = WeeklyRecurrence(_days);
-    } else {
-      recurrence = const DailyRecurrence();
+    final recurrence = _buildRecurrence();
+    if (recurrence == null) {
+      setState(() {}); // surface _error set by _buildRecurrence
+      return;
     }
     Navigator.pop(context, _TaskData(label, recurrence, _color));
   }
 
   @override
   Widget build(BuildContext context) {
+    final editing = widget.initial != null;
     return AlertDialog(
-      title: const Text('New task'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextField(
-            controller: _label,
-            autofocus: true,
-            decoration: const InputDecoration(labelText: 'Name'),
-          ),
-          const SizedBox(height: 12),
-          SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment(value: false, label: Text('Daily')),
-              ButtonSegment(value: true, label: Text('Weekly')),
-            ],
-            selected: {_weekly},
-            showSelectedIcon: false,
-            onSelectionChanged: (s) => setState(() => _weekly = s.first),
-          ),
-          if (_weekly) ...[
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 6,
-              children: [
-                for (var d = 1; d <= 7; d++)
-                  FilterChip(
-                    label: Text(_dayLabels[d - 1]),
-                    selected: _days.contains(d),
-                    onSelected: (on) =>
-                        setState(() => on ? _days.add(d) : _days.remove(d)),
-                  ),
-              ],
+      title: Text(editing ? 'Edit task' : 'New task'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _label,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Name'),
             ),
-          ],
-          const SizedBox(height: 16),
-          _ColorSwatches(
-            selected: _color,
-            onChanged: (c) => setState(() => _color = c),
-          ),
-          if (_error != null) ...[
             const SizedBox(height: 12),
-            Text(_error!, style: const TextStyle(color: Color(0xFFB5624F))),
+            DropdownButtonFormField<_RecKind>(
+              initialValue: _kind,
+              decoration: const InputDecoration(labelText: 'Repeats'),
+              items: const [
+                DropdownMenuItem(
+                  value: _RecKind.daily,
+                  child: Text('Every day'),
+                ),
+                DropdownMenuItem(
+                  value: _RecKind.weekly,
+                  child: Text('Certain weekdays'),
+                ),
+                DropdownMenuItem(
+                  value: _RecKind.interval,
+                  child: Text('Every N days'),
+                ),
+                DropdownMenuItem(
+                  value: _RecKind.dates,
+                  child: Text('Specific dates'),
+                ),
+              ],
+              onChanged: (k) => setState(() => _kind = k ?? _RecKind.daily),
+            ),
+            if (_kind == _RecKind.weekly) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 6,
+                children: [
+                  for (var d = 1; d <= 7; d++)
+                    FilterChip(
+                      label: Text(_dayLabels[d - 1]),
+                      selected: _days.contains(d),
+                      onSelected: (on) =>
+                          setState(() => on ? _days.add(d) : _days.remove(d)),
+                    ),
+                ],
+              ),
+            ],
+            if (_kind == _RecKind.interval) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Text('Every'),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 64,
+                    child: TextField(
+                      controller: _interval,
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text('days'),
+                ],
+              ),
+            ],
+            if (_kind == _RecKind.dates) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  for (final d in _dates)
+                    InputChip(
+                      label: Text(d.iso),
+                      onDeleted: () => setState(() => _dates.remove(d)),
+                    ),
+                  ActionChip(
+                    avatar: const Icon(Icons.add, size: 16),
+                    label: const Text('Add date'),
+                    onPressed: _addDate,
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 16),
+            _ColorSwatches(
+              selected: _color,
+              onChanged: (c) => setState(() => _color = c),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(_error!, style: const TextStyle(color: Color(0xFFB5624F))),
+            ],
           ],
-        ],
+        ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
         ),
-        FilledButton(onPressed: _submit, child: const Text('Add')),
+        FilledButton(onPressed: _submit, child: Text(editing ? 'Save' : 'Add')),
       ],
     );
   }

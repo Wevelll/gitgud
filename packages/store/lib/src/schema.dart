@@ -3,7 +3,7 @@
 /// steps — for now v1 is the whole story.
 library;
 
-const int schemaVersion = 1;
+const int schemaVersion = 2;
 
 const List<String> schemaStatements = [
   '''
@@ -26,6 +26,24 @@ const List<String> schemaStatements = [
   );
   ''',
   'CREATE INDEX IF NOT EXISTS idx_segments_profile ON segments(profile_id);',
+  // Sparse sub-blocks nested inside a parent segment (SPEC §2 nested detail).
+  // No FK to segments(id): the store re-materializes all of a profile's
+  // segments on every ring edit, so an ON DELETE CASCADE here would wipe
+  // sub-blocks on any edit. Integrity is instead kept in the repository, which
+  // reconciles (clips/drops) sub-blocks against the new ring after each edit.
+  '''
+  CREATE TABLE IF NOT EXISTS sub_segments (
+    id                TEXT PRIMARY KEY,
+    parent_segment_id TEXT NOT NULL,
+    start_min         INTEGER NOT NULL,
+    end_min           INTEGER NOT NULL,
+    name              TEXT NOT NULL,
+    color             TEXT NOT NULL,
+    sort_order        INTEGER NOT NULL
+  );
+  ''',
+  'CREATE INDEX IF NOT EXISTS idx_sub_segments_parent '
+      'ON sub_segments(parent_segment_id);',
   '''
   CREATE TABLE IF NOT EXISTS recurring_tasks (
     id              TEXT PRIMARY KEY,

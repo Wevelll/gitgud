@@ -102,6 +102,40 @@ void main() {
       repo.close();
     });
 
+    test('update, archive, and delete a task persist', () {
+      final repo = memRepo();
+      final date = CivilDate.parse('2026-07-03');
+      final task = repo.addRecurringTask(
+        label: 'Meds',
+        recurrence: const DailyRecurrence(),
+        colorHex: '#6FA85B',
+      );
+
+      // Edit label + recurrence; re-read from the db.
+      repo.updateRecurringTask(
+        task.id,
+        label: 'Take meds',
+        recurrence: WeeklyRecurrence({1, 5}),
+      );
+      final reread = repo.tasks().single;
+      expect(reread.label, 'Take meds');
+      expect(reread.recurrence, WeeklyRecurrence({1, 5}));
+
+      // Archive keeps the row but drops it from the tray.
+      repo.setTaskArchived(task.id, archived: true);
+      expect(trayFor(date, repo.tasks(), repo.completions()), isEmpty);
+      expect(repo.tasks().single.archived, isTrue);
+      repo.setTaskArchived(task.id, archived: false);
+
+      // Delete cascades the completions (task_completions ON DELETE CASCADE).
+      repo.completeTask(task.id, date);
+      expect(repo.completions(), hasLength(1));
+      repo.deleteRecurringTask(task.id);
+      expect(repo.tasks(), isEmpty);
+      expect(repo.completions(), isEmpty);
+      repo.close();
+    });
+
     test('logs feed plan-vs-actual over loaded data', () {
       final repo = memRepo();
       repo.logActual(
@@ -120,6 +154,63 @@ void main() {
       expect(work.actualMin, 120);
       expect(repo.logs().single.source, LogSource.agent); // enum round-trips
       repo.close();
+    });
+  });
+
+  group('sub-blocks persist', () {
+    test('add, update, delete, and clip on parent resize', () {
+      final repo = memRepo();
+      // Work is 09:00–23:00 in the weekday ring. Add a 10:00–11:00 sub-block.
+      final gym = repo.addSubBlock(
+        parentId: 'work',
+        name: 'Gym',
+        colorHex: '#abc',
+        startMin: 600,
+        endMin: 660,
+      );
+      expect(repo.subBlocks().of('work').single.name, 'Gym');
+
+      repo.updateSubBlock(gym.id, name: 'Yoga', endMin: 690); // 10:00–11:30
+      final afterEdit = repo.subBlocks().of('work').single;
+      expect(afterEdit.name, 'Yoga');
+      expect(afterEdit.endMin, 690);
+
+      // Move Work's start 09:00 → 11:00; the 10:00–11:30 block clips to 11:00.
+      repo.updateBlock('work', startMin: 660);
+      final clipped = repo.subBlocks().of('work').single;
+      expect(clipped.startMin, 660);
+      expect(clipped.endMin, 690);
+
+      repo.deleteSubBlock(clipped.id);
+      expect(repo.subBlocks().of('work'), isEmpty);
+      repo.close();
+    });
+
+    test('sub-blocks survive a real reopen (file-backed)', () {
+      final dir = Directory.systemTemp.createTempSync('daydial_sub');
+      try {
+        final path = '${dir.path}/day.db';
+        final repo = SqliteDayRepository.open(
+          path: path,
+          seedIfEmpty: [weekday()],
+          idFactory: () => 'sb',
+          clock: fixedClock,
+        );
+        repo.addSubBlock(
+          parentId: 'work',
+          name: 'Gym',
+          colorHex: '#abc',
+          startMin: 600,
+          endMin: 660,
+        );
+        repo.close();
+
+        final reopened = SqliteDayRepository.open(path: path);
+        expect(reopened.subBlocks().of('work').single.name, 'Gym');
+        reopened.close();
+      } finally {
+        dir.deleteSync(recursive: true);
+      }
     });
   });
 

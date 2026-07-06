@@ -18,6 +18,7 @@ class DaySnapshot {
     required this.logs,
     required this.habits,
     required this.habitEvents,
+    this.subBlocks = const {},
   });
 
   final List<DayProfile> profiles;
@@ -28,6 +29,10 @@ class DaySnapshot {
   final List<Habit> habits;
   final List<HabitEvent> habitEvents;
 
+  /// Sparse sub-block overlay: parent-segment id → its sub-blocks (SPEC §2
+  /// nested detail). Optional/defaults empty so older snapshots round-trip.
+  final Map<String, List<Segment>> subBlocks;
+
   Map<String, Object?> toJson() => {
         'activeProfileId': activeProfileId,
         'profiles': [for (final p in profiles) _profileToJson(p)],
@@ -36,6 +41,10 @@ class DaySnapshot {
         'logs': [for (final l in logs) _logToJson(l)],
         'habits': [for (final h in habits) _habitToJson(h)],
         'habitEvents': [for (final e in habitEvents) _habitEventToJson(e)],
+        'subBlocks': {
+          for (final e in subBlocks.entries)
+            e.key: [for (final s in e.value) _segmentToJson(s)],
+        },
       };
 
   factory DaySnapshot.fromJson(Map<String, Object?> json) {
@@ -55,26 +64,40 @@ class DaySnapshot {
       habitEvents: [
         for (final e in list('habitEvents')) _habitEventFromJson(e)
       ],
+      subBlocks: {
+        for (final e in ((json['subBlocks'] as Map?) ?? const {}).entries)
+          e.key as String: [
+            for (final s in (e.value as List).cast<Map<String, Object?>>())
+              _segmentFromJson(s)
+          ],
+      },
     );
   }
 
   // ---- per-model codecs -----------------------------------------------------
+
+  static Map<String, Object?> _segmentToJson(Segment s) => {
+        'id': s.id,
+        'name': s.name,
+        'color': s.colorHex,
+        'start': s.startMin,
+        'end': s.endMin,
+      };
+
+  static Segment _segmentFromJson(Map<String, Object?> s) => Segment(
+        id: s['id'] as String,
+        name: s['name'] as String,
+        colorHex: s['color'] as String,
+        startMin: (s['start'] as num).toInt(),
+        endMin: (s['end'] as num).toInt(),
+      );
 
   static Map<String, Object?> _profileToJson(DayProfile p) => {
         'id': p.id,
         'name': p.name,
         'activeDaysMask': p.activeDaysMask,
         'isDefault': p.isDefault,
-        'segments': [
-          for (final s in p.segments)
-            {
-              'id': s.id,
-              'name': s.name,
-              'color': s.colorHex,
-              'start': s.startMin,
-              'end': s.endMin,
-            }
-        ],
+        'segments': [for (final s in p.segments) _segmentToJson(s)],
       };
 
   static DayProfile _profileFromJson(Map<String, Object?> j) => DayProfile(
@@ -84,13 +107,7 @@ class DaySnapshot {
         isDefault: j['isDefault'] as bool? ?? false,
         segments: [
           for (final s in (j['segments'] as List).cast<Map<String, Object?>>())
-            Segment(
-              id: s['id'] as String,
-              name: s['name'] as String,
-              colorHex: s['color'] as String,
-              startMin: (s['start'] as num).toInt(),
-              endMin: (s['end'] as num).toInt(),
-            )
+            _segmentFromJson(s)
         ],
       );
 

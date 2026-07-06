@@ -1,5 +1,6 @@
 import 'package:day_dial/painters/dial_painter.dart';
 import 'package:day_dial/widgets/dial_view.dart';
+import 'package:day_dial_core/day_dial_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -56,6 +57,52 @@ void main() {
       nowMin: 1410,
       mode: DialMode.compass,
       file: 'compass_2330.png',
+    );
+  });
+
+  testWidgets('active block subdivides into its sub-blocks (clock 20:00)', (
+    tester,
+  ) async {
+    // Free time (18:00–23:00) holds Gym 18–19, a gap 19–20, Dinner 20–21,
+    // Read 21–23. At 20:00 Free is active, so its wedge subdivides in place.
+    final plan = SubBlockPlan({
+      'free': [
+        const Segment(
+          id: 'gym',
+          name: 'Gym',
+          colorHex: '#2E8B8B',
+          startMin: 1080,
+          endMin: 1140,
+        ),
+        const Segment(
+          id: 'dinner',
+          name: 'Dinner',
+          colorHex: '#8E6FB0',
+          startMin: 1200,
+          endMin: 1260,
+        ),
+        const Segment(
+          id: 'read',
+          name: 'Read',
+          colorHex: '#5A9FB0',
+          startMin: 1260,
+          endMin: 1380,
+        ),
+      ],
+    });
+    await tester.pumpWidget(
+      host(
+        DialView(
+          profile: testProfile(),
+          nowMin: 1200,
+          mode: DialMode.clock,
+          subBlocks: plan,
+        ),
+      ),
+    );
+    await expectLater(
+      find.byType(DialView),
+      matchesGoldenFile('goldens/subblocks_2000.png'),
     );
   });
 

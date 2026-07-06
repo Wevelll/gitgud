@@ -1,5 +1,6 @@
 import 'package:day_dial/main.dart';
 import 'package:day_dial/widgets/dial_view.dart';
+import 'package:day_dial_core/day_dial_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -118,6 +119,113 @@ void main() {
     await tester.pump();
 
     expect(repo.logs(), hasLength(1)); // an actual was logged
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('editing a tray task updates the repository', (tester) async {
+    final repo = testRepository();
+    await tester.pumpWidget(DayDialApp(repository: repo));
+    await tester.pump();
+
+    // Open the actions menu on the seeded 'Take meds' task.
+    await tester.ensureVisible(find.byIcon(Icons.more_vert).first);
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.more_vert).first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400)); // menu opens
+
+    await tester.tap(find.text('Edit…'));
+    await tester.pump(const Duration(milliseconds: 400)); // dialog opens
+
+    await tester.enterText(find.byType(TextField).first, 'Take vitamins');
+    await tester.tap(find.text('Save'));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(repo.tasks().any((t) => t.label == 'Take vitamins'), isTrue);
+    expect(repo.tasks().any((t) => t.label == 'Take meds'), isFalse);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('archiving a task removes it from the tray', (tester) async {
+    final repo = testRepository();
+    await tester.pumpWidget(DayDialApp(repository: repo));
+    await tester.pump();
+
+    expect(find.text('Take meds'), findsOneWidget);
+
+    await tester.ensureVisible(find.byIcon(Icons.more_vert).first);
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.more_vert).first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.tap(find.text('Archive'));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('Take meds'), findsNothing); // gone from the tray
+    expect(repo.tasks().single.archived, isTrue); // but still stored, archived
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('creating an every-N-days task persists an interval rule', (
+    tester,
+  ) async {
+    final repo = testRepository();
+    await tester.pumpWidget(DayDialApp(repository: repo));
+    await tester.pump();
+
+    await tester.ensureVisible(find.byKey(const Key('add-task')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('add-task')));
+    await tester.pump(const Duration(milliseconds: 400)); // dialog opens
+
+    await tester.enterText(find.byType(TextField).first, 'Water plants');
+
+    // Switch the "Repeats" dropdown from 'Every day' to 'Every N days'.
+    await tester.tap(find.text('Every day'));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('Every N days').last);
+    await tester.pump(const Duration(milliseconds: 400));
+
+    // Default interval is 2 days; submit as-is.
+    await tester.tap(find.text('Add'));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    final added = repo.tasks().firstWhere((t) => t.label == 'Water plants');
+    expect(added.recurrence, isA<IntervalRecurrence>());
+    expect((added.recurrence as IntervalRecurrence).intervalDays, 2);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('adding a detail sub-block to the selected wedge persists', (
+    tester,
+  ) async {
+    final repo = testRepository();
+    await tester.pumpWidget(DayDialApp(repository: repo));
+    await tester.pump();
+    expect(repo.subBlocks().isEmpty, isTrue);
+
+    // Select a wedge by tapping the ring (any wedge; angle picks one).
+    final center = tester.getCenter(find.byType(DialView));
+    await tester.tapAt(center + const Offset(90, 0));
+    await tester.pump();
+
+    // The selected-block editor now offers "Add detail". The dialog defaults
+    // its times to inside the parent, so accepting them yields a valid sub-block.
+    await tester.ensureVisible(find.text('Add detail'));
+    await tester.pump();
+    await tester.tap(find.text('Add detail'));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.enterText(find.byType(TextField).first, 'Focus');
+    await tester.tap(find.text('Save'));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(repo.subBlocks().isEmpty, isFalse); // a sub-block was persisted
 
     await tester.pumpWidget(const SizedBox());
   });

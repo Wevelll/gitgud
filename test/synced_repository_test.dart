@@ -40,4 +40,34 @@ void main() {
       await server.close();
     }
   });
+
+  test('sub-blocks created on the web sync to the desktop', () async {
+    final desktop = InMemoryDayRepository(profiles: [testProfile()]);
+    final server = DataApiServer(
+      DayDialTools(desktop, const AllowAllConsent()),
+    );
+    final hub = await server.start();
+
+    try {
+      final web = await SyncedDayRepository.connect(hub: hub);
+      // Free time is 18:00–23:00 in the reference ring.
+      web.addSubBlock(
+        parentId: 'free',
+        name: 'Gym',
+        colorHex: '#2E8B8B',
+        startMin: 1080,
+        endMin: 1140,
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+
+      expect(
+        desktop.subBlocks().of('free').single.name,
+        'Gym',
+        reason: 'the sub-block should have synced to the desktop',
+      );
+    } finally {
+      await server.close();
+    }
+  });
 }

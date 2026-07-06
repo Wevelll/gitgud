@@ -97,6 +97,7 @@ class DaySnapshot {
         'name': p.name,
         'activeDaysMask': p.activeDaysMask,
         'isDefault': p.isDefault,
+        if (p.forDate != null) 'forDate': p.forDate,
         'segments': [for (final s in p.segments) _segmentToJson(s)],
       };
 
@@ -105,6 +106,7 @@ class DaySnapshot {
         name: j['name'] as String,
         activeDaysMask: (j['activeDaysMask'] as num?)?.toInt() ?? 0,
         isDefault: j['isDefault'] as bool? ?? false,
+        forDate: j['forDate'] as String?,
         segments: [
           for (final s in (j['segments'] as List).cast<Map<String, Object?>>())
             _segmentFromJson(s)

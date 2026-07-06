@@ -90,6 +90,7 @@ extension RingEdit on DayProfile {
         segments: segs,
         activeDaysMask: activeDaysMask,
         isDefault: isDefault,
+        forDate: forDate,
       );
     }
     if (startMin == null && endMin == null) return profile;
@@ -198,6 +199,7 @@ extension RingEdit on DayProfile {
       segments: rebuilt,
       activeDaysMask: activeDaysMask,
       isDefault: isDefault,
+      forDate: forDate,
     );
   }
 }

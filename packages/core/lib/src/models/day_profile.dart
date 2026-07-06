@@ -1,3 +1,4 @@
+import '../time/civil_date.dart';
 import '../time/day_minutes.dart';
 import 'segment.dart';
 
@@ -34,6 +35,7 @@ class DayProfile {
     required this.segments,
     this.activeDaysMask = 0,
     this.isDefault = false,
+    this.forDate,
   });
 
   /// Validating constructor. Throws [InvalidProfileException] if [segments] do
@@ -44,6 +46,7 @@ class DayProfile {
     required List<Segment> segments,
     int activeDaysMask = 0,
     bool isDefault = false,
+    String? forDate,
   }) {
     _validate(segments);
     return DayProfile._(
@@ -52,6 +55,49 @@ class DayProfile {
       segments: List.unmodifiable(segments),
       activeDaysMask: activeDaysMask,
       isDefault: isDefault,
+      forDate: forDate,
+    );
+  }
+
+  /// Builds a ring from ordered `(name, colorHex, minutes)` blocks laid
+  /// clockwise from [firstStartMin] (default midnight). Durations must sum to
+  /// 1440. The ergonomic way to author a template by *how long* each block is
+  /// (e.g. Sleep/Work/Free 8h/8h/8h) rather than by boundary times.
+  factory DayProfile.fromDurations({
+    required String id,
+    required String name,
+    required List<({String name, String colorHex, int minutes})> blocks,
+    int firstStartMin = 0,
+    List<String>? segmentIds,
+    int activeDaysMask = 0,
+    bool isDefault = false,
+    String? forDate,
+  }) {
+    final total = blocks.fold(0, (s, b) => s + b.minutes);
+    if (total != minutesPerDay) {
+      throw InvalidProfileException('Durations sum to $total, not 1440');
+    }
+    var start = normalizeMinute(firstStartMin);
+    final segs = <Segment>[];
+    for (var i = 0; i < blocks.length; i++) {
+      final b = blocks[i];
+      final end = normalizeMinute(start + b.minutes);
+      segs.add(Segment(
+        id: segmentIds != null ? segmentIds[i] : '$id.seg$i',
+        name: b.name,
+        colorHex: b.colorHex,
+        startMin: start,
+        endMin: end,
+      ));
+      start = end;
+    }
+    return DayProfile(
+      id: id,
+      name: name,
+      segments: segs,
+      activeDaysMask: activeDaysMask,
+      isDefault: isDefault,
+      forDate: forDate,
     );
   }
 
@@ -96,8 +142,20 @@ class DayProfile {
   final List<Segment> segments;
 
   /// Bitmask of weekdays this profile is active on (bit 0 = Monday). 0 = unset.
+  /// Only meaningful for templates ([forDate] == null).
   final int activeDaysMask;
   final bool isDefault;
+
+  /// When non-null (an ISO `YYYY-MM-DD` string), this profile is a **per-date
+  /// override** for that single day rather than a weekday template. The
+  /// effective ring for a date is: its override, else the template assigned to
+  /// its weekday, else the default (see [effectiveProfile]).
+  final String? forDate;
+
+  /// A template (not a per-date override) assigned to [isoWeekday] (Mon = 1 …
+  /// Sun = 7).
+  bool appliesToWeekday(int isoWeekday) =>
+      forDate == null && (activeDaysMask & (1 << (isoWeekday - 1))) != 0;
 
   static void _validate(List<Segment> segments) {
     if (segments.length < 2) {
@@ -208,6 +266,7 @@ class DayProfile {
       segments: List.unmodifiable(updated),
       activeDaysMask: activeDaysMask,
       isDefault: isDefault,
+      forDate: forDate,
     );
   }
 
@@ -217,6 +276,7 @@ class DayProfile {
     List<Segment>? segments,
     int? activeDaysMask,
     bool? isDefault,
+    String? forDate,
   }) {
     return DayProfile(
       id: id ?? this.id,
@@ -224,6 +284,28 @@ class DayProfile {
       segments: segments ?? this.segments,
       activeDaysMask: activeDaysMask ?? this.activeDaysMask,
       isDefault: isDefault ?? this.isDefault,
+      forDate: forDate ?? this.forDate,
     );
   }
+}
+
+/// The effective ring for [date]: its per-date override if one exists, else the
+/// template assigned to that weekday, else the default template (or, failing
+/// that, the first profile). This is the resolution the whole app reads through
+/// once profiles carry weekday assignments and per-date overrides.
+DayProfile effectiveProfile(CivilDate date, Iterable<DayProfile> profiles) {
+  final list = profiles.toList();
+  for (final p in list) {
+    if (p.forDate == date.iso) return p;
+  }
+  for (final p in list) {
+    if (p.appliesToWeekday(date.weekday)) return p;
+  }
+  return list.firstWhere(
+    (p) => p.forDate == null && p.isDefault,
+    orElse: () => list.firstWhere(
+      (p) => p.forDate == null,
+      orElse: () => list.first,
+    ),
+  );
 }

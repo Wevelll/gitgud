@@ -149,11 +149,70 @@ class SqliteDayRepository implements DayRepository {
   }
 
   @override
+  DayProfile profileForDate(CivilDate date) =>
+      effectiveProfile(date, profiles());
+
+  @override
   void switchProfile(String profileId) {
     final exists =
         _db.select('SELECT 1 FROM profiles WHERE id = ?', [profileId]);
     if (exists.isEmpty) throw StateError('No profile "$profileId"');
     _setSetting('active_profile_id', profileId);
+  }
+
+  void _requireProfile(String id) {
+    if (_db.select('SELECT 1 FROM profiles WHERE id = ?', [id]).isEmpty) {
+      throw StateError('No profile "$id"');
+    }
+  }
+
+  @override
+  void addProfile(DayProfile profile) {
+    if (_db.select(
+        'SELECT 1 FROM profiles WHERE id = ?', [profile.id]).isNotEmpty) {
+      throw StateError('Profile "${profile.id}" already exists');
+    }
+    _insertProfile(profile);
+  }
+
+  @override
+  void removeProfile(String id) {
+    _requireProfile(id);
+    if (id == _activeId) throw StateError('Cannot remove the active profile');
+    final count =
+        _db.select('SELECT COUNT(*) AS c FROM profiles').first['c'] as int;
+    if (count <= 1) throw StateError('Cannot remove the last profile');
+    final segIds = _db
+        .select('SELECT id FROM segments WHERE profile_id = ?', [id])
+        .map((r) => r['id'] as String)
+        .toList();
+    _db.execute('DELETE FROM profiles WHERE id = ?', [id]); // cascades segments
+    for (final sid in segIds) {
+      _db.execute(
+          'DELETE FROM sub_segments WHERE parent_segment_id = ?', [sid]);
+    }
+  }
+
+  @override
+  void setProfileName(String id, String name) {
+    _requireProfile(id);
+    _db.execute('UPDATE profiles SET name = ? WHERE id = ?', [name, id]);
+  }
+
+  @override
+  void setProfileWeekdays(String id, int activeDaysMask) {
+    _requireProfile(id);
+    _db.execute(
+      'UPDATE profiles SET active_days_mask = ? WHERE id = ?',
+      [activeDaysMask, id],
+    );
+  }
+
+  @override
+  void setDefaultProfile(String id) {
+    _requireProfile(id);
+    // (id = ?) is 1 for the chosen row and 0 for the rest.
+    _db.execute('UPDATE profiles SET is_default = (id = ?)', [id]);
   }
 
   @override

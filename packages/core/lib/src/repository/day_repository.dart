@@ -20,8 +20,32 @@ abstract interface class DayRepository {
   DayProfile activeProfile();
   List<DayProfile> profiles();
 
+  /// The effective ring for [date]: its per-date override, else the template
+  /// assigned to that weekday, else the default (see [effectiveProfile]).
+  DayProfile profileForDate(CivilDate date);
+
   /// Switches the active profile. Throws [StateError] if unknown.
   void switchProfile(String profileId);
+
+  /// Adds a profile (a weekday template or a per-date override). Throws
+  /// [StateError] if its id already exists.
+  void addProfile(DayProfile profile);
+
+  /// Removes profile [id] (and any sub-blocks under its segments). Throws
+  /// [StateError] if unknown, if it's the active profile, or if it's the last
+  /// one.
+  void removeProfile(String id);
+
+  /// Renames a profile. Throws [StateError] if unknown.
+  void setProfileName(String id, String name);
+
+  /// Sets which weekdays a template applies to (bitmask, Monday = bit 0).
+  /// Throws [StateError] if unknown.
+  void setProfileWeekdays(String id, int activeDaysMask);
+
+  /// Makes [id] the sole default template (clears the flag on the others).
+  /// Throws [StateError] if unknown.
+  void setDefaultProfile(String id);
 
   /// Adds a block to the active profile and returns the created segment.
   Segment addBlock({
@@ -207,11 +231,58 @@ class InMemoryDayRepository implements DayRepository {
   List<DayProfile> profiles() => _profiles.values.toList(growable: false);
 
   @override
+  DayProfile profileForDate(CivilDate date) =>
+      effectiveProfile(date, _profiles.values);
+
+  @override
   void switchProfile(String profileId) {
     if (!_profiles.containsKey(profileId)) {
       throw StateError('No profile "$profileId"');
     }
     _activeId = profileId;
+  }
+
+  @override
+  void addProfile(DayProfile profile) {
+    if (_profiles.containsKey(profile.id)) {
+      throw StateError('Profile "${profile.id}" already exists');
+    }
+    _profiles[profile.id] = profile;
+  }
+
+  @override
+  void removeProfile(String id) {
+    final profile = _profiles[id];
+    if (profile == null) throw StateError('No profile "$id"');
+    if (id == _activeId) throw StateError('Cannot remove the active profile');
+    if (_profiles.length <= 1)
+      throw StateError('Cannot remove the last profile');
+    _profiles.remove(id);
+    for (final s in profile.segments) {
+      _subBlocks.remove(s.id); // drop this profile's sub-blocks
+    }
+  }
+
+  void _mutateProfile(String id, DayProfile Function(DayProfile) f) {
+    final p = _profiles[id];
+    if (p == null) throw StateError('No profile "$id"');
+    _profiles[id] = f(p);
+  }
+
+  @override
+  void setProfileName(String id, String name) =>
+      _mutateProfile(id, (p) => p.copyWith(name: name));
+
+  @override
+  void setProfileWeekdays(String id, int activeDaysMask) =>
+      _mutateProfile(id, (p) => p.copyWith(activeDaysMask: activeDaysMask));
+
+  @override
+  void setDefaultProfile(String id) {
+    if (!_profiles.containsKey(id)) throw StateError('No profile "$id"');
+    for (final key in _profiles.keys.toList()) {
+      _profiles[key] = _profiles[key]!.copyWith(isDefault: key == id);
+    }
   }
 
   @override

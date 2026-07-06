@@ -81,6 +81,30 @@ void main() {
     });
   });
 
+  group('profiles: multi-template + weekday resolution (persisted)', () {
+    test('add, assign weekdays, and resolve by date', () {
+      final repo = memRepo(); // seeds weekday()
+      repo.addProfile(weekend());
+      repo.setProfileWeekdays('weekday', 31); // Mon–Fri
+      repo.setProfileWeekdays('weekend', 96); // Sat–Sun
+      expect(repo.profileForDate(CivilDate.parse('2026-07-06')).id, 'weekday');
+      expect(repo.profileForDate(CivilDate.parse('2026-07-11')).id, 'weekend');
+      repo.close();
+    });
+
+    test('setDefaultProfile and remove a non-active profile', () {
+      final repo = memRepo(seed: [weekday(), weekend()]);
+      repo.setDefaultProfile('weekend');
+      expect(
+        repo.profiles().firstWhere((p) => p.id == 'weekend').isDefault,
+        isTrue,
+      );
+      repo.removeProfile('weekend'); // weekday is active, so this is allowed
+      expect(repo.profiles().map((p) => p.id), ['weekday']);
+      repo.close();
+    });
+  });
+
   group('tasks, completions, logs persist', () {
     test('recurring task + idempotent completion', () {
       final repo = memRepo();

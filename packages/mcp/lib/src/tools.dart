@@ -235,6 +235,98 @@ class DayDialTools {
       ]),
       mutates: true,
     ),
+    ToolSpec(
+      name: 'update_recurring_task',
+      description: 'Edit a recurring task\'s label, recurrence, or color.',
+      inputSchema: _schema({
+        'id': {'type': 'string'},
+        'label': {'type': 'string'},
+        'recurrence': {
+          'type': 'string',
+          'description':
+              'daily | weekly:1,3,5 | interval:N@YYYY-MM-DD | dates:YYYY-MM-DD,...',
+        },
+        'color': _colorArg,
+      }, required: [
+        'id'
+      ]),
+      mutates: true,
+    ),
+    ToolSpec(
+      name: 'set_task_archived',
+      description: 'Archive or un-archive a recurring task (hides it from the '
+          'tray, keeps its history).',
+      inputSchema: _schema({
+        'id': {'type': 'string'},
+        'archived': {'type': 'boolean'},
+      }, required: [
+        'id',
+        'archived'
+      ]),
+      mutates: true,
+    ),
+    ToolSpec(
+      name: 'delete_recurring_task',
+      description: 'Permanently delete a recurring task and its completions.',
+      inputSchema: _schema({
+        'id': {'type': 'string'},
+      }, required: [
+        'id'
+      ]),
+      mutates: true,
+      destructive: true,
+    ),
+    ToolSpec(
+      name: 'get_sub_blocks',
+      description:
+          'The sub-blocks planned inside blocks (optionally one block).',
+      inputSchema: _schema({
+        'parentId': {'type': 'string', 'description': 'Limit to one block'},
+      }),
+    ),
+    ToolSpec(
+      name: 'add_sub_block',
+      description:
+          'Add a detail sub-block inside a block (must fit within it).',
+      inputSchema: _schema({
+        'parentId': {'type': 'string'},
+        'name': {'type': 'string'},
+        'start': _timeArg,
+        'end': _timeArg,
+        'color': _colorArg,
+      }, required: [
+        'parentId',
+        'name',
+        'start',
+        'end'
+      ]),
+      mutates: true,
+    ),
+    ToolSpec(
+      name: 'update_sub_block',
+      description: 'Move, resize, rename, or recolor a detail sub-block.',
+      inputSchema: _schema({
+        'id': {'type': 'string'},
+        'name': {'type': 'string'},
+        'start': _timeArg,
+        'end': _timeArg,
+        'color': _colorArg,
+      }, required: [
+        'id'
+      ]),
+      mutates: true,
+    ),
+    ToolSpec(
+      name: 'delete_sub_block',
+      description: 'Delete a detail sub-block.',
+      inputSchema: _schema({
+        'id': {'type': 'string'},
+      }, required: [
+        'id'
+      ]),
+      mutates: true,
+      destructive: true,
+    ),
   ];
 
   static ToolSpec _spec(String name) => specs.firstWhere(
@@ -278,6 +370,20 @@ class DayDialTools {
         return _addRecurringTask(args);
       case 'complete_task':
         return _completeTask(args);
+      case 'update_recurring_task':
+        return _updateRecurringTask(args);
+      case 'set_task_archived':
+        return _setTaskArchived(args);
+      case 'delete_recurring_task':
+        return _deleteRecurringTask(args);
+      case 'get_sub_blocks':
+        return _getSubBlocks(args);
+      case 'add_sub_block':
+        return _addSubBlock(args);
+      case 'update_sub_block':
+        return _updateSubBlock(args);
+      case 'delete_sub_block':
+        return _deleteSubBlock(args);
       case 'switch_profile':
         return _switchProfile(args);
       case 'log_actual':
@@ -299,6 +405,7 @@ class DayDialTools {
     final now = _nowMin(args['now']);
     final profile = repo.activeProfile();
     final seg = profile.segmentAt(now);
+    final detail = activeSubBlockAt(seg, repo.subBlocks().of(seg.id), now);
     return {
       'name': seg.name,
       'color': seg.colorHex,
@@ -306,16 +413,33 @@ class DayDialTools {
       'endsAt': formatMinuteOfDay(seg.endMin),
       'minutesRemaining': profile.remainingAt(now),
       'profile': profile.name,
+      // The finer sub-block you're inside right now, if any (else null).
+      'activeDetail': detail == null
+          ? null
+          : {
+              'name': detail.name,
+              'color': detail.colorHex,
+              'startsAt': formatMinuteOfDay(detail.startMin),
+              'endsAt': formatMinuteOfDay(detail.endMin),
+              'minutesRemaining': spanMinutes(now, detail.endMin),
+            },
     };
   }
 
   Map<String, Object?> _getDay(Map<String, Object?> args) {
     final date = _date(args['date']);
     final profile = repo.activeProfile();
+    final plan = repo.subBlocks();
     return {
       'date': date.iso,
       'profile': profile.name,
-      'blocks': [for (final s in profile.segments) _block(s)],
+      'blocks': [
+        for (final s in profile.segments)
+          {
+            ..._block(s),
+            'detail': [for (final sub in plan.of(s.id)) _block(sub)],
+          },
+      ],
       'tasks': _trayJson(date),
     };
   }
@@ -421,6 +545,75 @@ class DayDialTools {
 
   Map<String, Object?> _completeTask(Map<String, Object?> args) {
     repo.completeTask(args['id']! as String, _date(args['date']));
+    return {'ok': true};
+  }
+
+  Map<String, Object?> _updateRecurringTask(Map<String, Object?> args) {
+    final task = repo.updateRecurringTask(
+      args['id']! as String,
+      label: args['label'] as String?,
+      colorHex: args['color'] as String?,
+      recurrence: args.containsKey('recurrence')
+          ? Recurrence.parse(args['recurrence']! as String)
+          : null,
+    );
+    return {
+      'id': task.id,
+      'label': task.label,
+      'recurrence': task.recurrence.encode(),
+      'color': task.colorHex,
+      'archived': task.archived,
+    };
+  }
+
+  Map<String, Object?> _setTaskArchived(Map<String, Object?> args) {
+    repo.setTaskArchived(
+      args['id']! as String,
+      archived: args['archived']! as bool,
+    );
+    return {'ok': true};
+  }
+
+  Map<String, Object?> _deleteRecurringTask(Map<String, Object?> args) {
+    repo.deleteRecurringTask(args['id']! as String);
+    return {'ok': true};
+  }
+
+  List<Map<String, Object?>> _getSubBlocks(Map<String, Object?> args) {
+    final plan = repo.subBlocks();
+    final only = args['parentId'] as String?;
+    final parents = only != null ? [only] : plan.parentIds.toList();
+    return [
+      for (final pid in parents)
+        for (final s in plan.of(pid)) {'parentId': pid, ..._block(s)},
+    ];
+  }
+
+  Map<String, Object?> _addSubBlock(Map<String, Object?> args) {
+    final parentId = args['parentId']! as String;
+    final seg = repo.addSubBlock(
+      parentId: parentId,
+      name: args['name']! as String,
+      colorHex: (args['color'] as String?) ?? '#5A9FB0',
+      startMin: _minute(args['start']),
+      endMin: _minute(args['end']),
+    );
+    return {'parentId': parentId, ..._block(seg)};
+  }
+
+  Map<String, Object?> _updateSubBlock(Map<String, Object?> args) {
+    final seg = repo.updateSubBlock(
+      args['id']! as String,
+      name: args['name'] as String?,
+      colorHex: args['color'] as String?,
+      startMin: args.containsKey('start') ? _minute(args['start']) : null,
+      endMin: args.containsKey('end') ? _minute(args['end']) : null,
+    );
+    return _block(seg);
+  }
+
+  Map<String, Object?> _deleteSubBlock(Map<String, Object?> args) {
+    repo.deleteSubBlock(args['id']! as String);
     return {'ok': true};
   }
 

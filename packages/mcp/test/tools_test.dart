@@ -88,6 +88,12 @@ void main() {
         'delete_block',
         'add_recurring_task',
         'complete_task',
+        'update_recurring_task',
+        'set_task_archived',
+        'delete_recurring_task',
+        'add_sub_block',
+        'update_sub_block',
+        'delete_sub_block',
         'switch_profile',
         'log_actual',
         'add_habit',
@@ -98,7 +104,7 @@ void main() {
               .where((s) => s.destructive)
               .map((s) => s.name)
               .toSet(),
-          {'delete_block'});
+          {'delete_block', 'delete_recurring_task', 'delete_sub_block'});
     });
   });
 
@@ -232,6 +238,96 @@ void main() {
       }) as Map;
       expect(log['category'], 'Work');
       expect(log['minutes'], 90);
+    });
+
+    test('recurring task: update, archive, and delete', () async {
+      final r = repo();
+      final tools = DayDialTools(r, const AllowAllConsent(), clock: fixedClock);
+      final task = await tools.call(
+              'add_recurring_task', {'label': 'Meds', 'recurrence': 'daily'})
+          as Map;
+      final id = task['id'] as String;
+
+      final updated = await tools.call('update_recurring_task',
+          {'id': id, 'label': 'Vitamins', 'recurrence': 'weekly:1,3,5'}) as Map;
+      expect(updated['label'], 'Vitamins');
+      expect(updated['recurrence'], 'weekly:1,3,5');
+
+      // Archive hides it from the tray (Friday 2026-07-03 is weekday 5).
+      await tools.call('set_task_archived', {'id': id, 'archived': true});
+      final tray = await tools.call('get_recurring_tasks') as List;
+      expect(tray.any((t) => t['id'] == id), isFalse);
+
+      await tools.call('set_task_archived', {'id': id, 'archived': false});
+      await tools.call('delete_recurring_task', {'id': id});
+      expect(r.tasks(), isEmpty);
+    });
+
+    test('sub-blocks: add, read, update, and delete over MCP', () async {
+      final r = repo();
+      final tools = DayDialTools(r, const AllowAllConsent(), clock: fixedClock);
+
+      // Free time is 18:00–23:00 in the weekday ring.
+      final added = await tools.call('add_sub_block', {
+        'parentId': 'free',
+        'name': 'Gym',
+        'start': '18:00',
+        'end': '19:00',
+      }) as Map;
+      final id = added['id'] as String;
+      expect(added['parentId'], 'free');
+
+      final list =
+          await tools.call('get_sub_blocks', {'parentId': 'free'}) as List;
+      expect(list.single['name'], 'Gym');
+
+      final updated = await tools
+          .call('update_sub_block', {'id': id, 'name': 'Workout'}) as Map;
+      expect(updated['name'], 'Workout');
+
+      await tools.call('delete_sub_block', {'id': id});
+      expect(r.subBlocks().of('free'), isEmpty);
+    });
+
+    test('add_sub_block outside the parent surfaces the error', () async {
+      final r = repo();
+      final tools = DayDialTools(r, const AllowAllConsent(), clock: fixedClock);
+      expect(
+        () => tools.call('add_sub_block', {
+          'parentId': 'free', // 18:00–23:00
+          'name': 'x',
+          'start': '10:00', // outside Free time
+          'end': '11:00',
+        }),
+        throwsA(isA<InvalidSubBlockException>()),
+      );
+    });
+
+    test('get_current_block reports the active sub-block', () async {
+      final r = repo();
+      final tools = DayDialTools(r, const AllowAllConsent(), clock: fixedClock);
+      await tools.call('add_sub_block', {
+        'parentId': 'free',
+        'name': 'Gym',
+        'start': '18:00',
+        'end': '19:00',
+      });
+      final at1830 =
+          await tools.call('get_current_block', {'now': '18:30'}) as Map;
+      final detail = at1830['activeDetail'] as Map?;
+      expect(detail?['name'], 'Gym');
+      expect(detail?['minutesRemaining'], 30); // 18:30 -> 19:00
+
+      // In a gap the block is active but there is no sub-block.
+      final at2000 =
+          await tools.call('get_current_block', {'now': '20:00'}) as Map;
+      expect(at2000['activeDetail'], isNull);
+    });
+
+    test('delete_recurring_task and delete_sub_block are destructive', () {
+      final specs = {for (final s in DayDialTools.specs) s.name: s};
+      expect(specs['delete_recurring_task']!.destructive, isTrue);
+      expect(specs['delete_sub_block']!.destructive, isTrue);
     });
   });
 }

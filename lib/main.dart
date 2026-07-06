@@ -10,6 +10,9 @@ import 'screens/dial_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final repository = await createRepository();
+  // Show today's template (its weekday assignment, else the default).
+  final today = CivilDate.fromDateTime(DateTime.now());
+  repository.switchProfile(repository.profileForDate(today).id);
   runApp(DayDialApp(repository: repository));
 }
 

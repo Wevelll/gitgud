@@ -9,6 +9,7 @@ import '../painters/dial_painter.dart';
 import '../widgets/dial_view.dart';
 import 'agent_screen.dart';
 import 'stats_screen.dart';
+import 'templates_screen.dart';
 
 /// The main dial screen: the dial plus its controls, a resize editor, and the
 /// must-do tray. State is minimal `setState`; all reads/writes go through a
@@ -440,6 +441,20 @@ class _DialScreenState extends State<DialScreen> {
     );
   }
 
+  Future<void> _openTemplates() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TemplatesScreen(
+          repository: _repo,
+          onChanged: () => setState(_loadFromRepo),
+        ),
+      ),
+    );
+    // The active template (and thus the ring) may have changed.
+    setState(_loadFromRepo);
+    widget.onDayChanged?.call();
+  }
+
   Widget _header(Segment cur) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -449,7 +464,7 @@ class _DialScreenState extends State<DialScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'YOUR DAY · 24H',
+                _profile.name.toUpperCase(),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -469,6 +484,11 @@ class _DialScreenState extends State<DialScreen> {
           ),
         ),
         const SizedBox(width: 4),
+        IconButton(
+          tooltip: 'Day templates',
+          onPressed: _openTemplates,
+          icon: const Icon(Icons.calendar_month_outlined),
+        ),
         IconButton(
           tooltip: 'Plan vs actual',
           onPressed: _openStats,

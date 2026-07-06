@@ -1,19 +1,17 @@
 import 'package:day_dial_core/day_dial_core.dart';
 
-/// A default day layout for the UI, mirroring the prototype's `INITIAL` ring.
-/// (Persistence will supply the real profile later; this seeds the demo.)
-DayProfile defaultProfile() => DayProfile.ring(
-  id: 'weekday',
-  name: 'Weekday',
+/// The first-run default template: a simple 8/8/8 Sleep/Work/Free day (SPEC
+/// §2.4). It carries no weekday assignment, so it's the fallback for every day
+/// until the user adds weekday-specific templates in settings.
+DayProfile defaultProfile() => DayProfile.fromDurations(
+  id: 'default',
+  name: 'Default',
   isDefault: true,
-  segmentIds: const ['sleep', 'morning', 'deep', 'lunch', 'work', 'free'],
-  spans: const [
-    (startMin: 1380, name: 'Sleep', colorHex: '#4B4FA6'),
-    (startMin: 420, name: 'Morning', colorHex: '#C98A3E'),
-    (startMin: 540, name: 'Deep work', colorHex: '#2E8B8B'),
-    (startMin: 780, name: 'Lunch', colorHex: '#B5624F'),
-    (startMin: 840, name: 'Work', colorHex: '#3E7CB1'),
-    (startMin: 1080, name: 'Free time', colorHex: '#6FA85B'),
+  segmentIds: const ['sleep', 'work', 'free'],
+  blocks: const [
+    (name: 'Sleep', colorHex: '#4B4FA6', minutes: 480),
+    (name: 'Work', colorHex: '#3E7CB1', minutes: 480),
+    (name: 'Free', colorHex: '#6FA85B', minutes: 480),
   ],
 );
 

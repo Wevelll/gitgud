@@ -1,4 +1,5 @@
 import 'package:day_dial/main.dart';
+import 'package:day_dial/screens/templates_screen.dart';
 import 'package:day_dial/widgets/dial_view.dart';
 import 'package:day_dial_core/day_dial_core.dart';
 import 'package:flutter/material.dart';
@@ -226,6 +227,45 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
 
     expect(repo.subBlocks().isEmpty, isFalse); // a sub-block was persisted
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('day templates: create a template by durations', (tester) async {
+    final repo = testRepository();
+    await tester.pumpWidget(
+      MaterialApp(home: TemplatesScreen(repository: repo)),
+    );
+    await tester.pump();
+    final before = repo.profiles().length;
+
+    await tester.tap(find.text('New template'));
+    await tester.pump(const Duration(milliseconds: 400)); // dialog opens
+
+    // Defaults are Sleep/Work/Free 8/8/8 (totals 24h); just create it.
+    await tester.tap(find.text('Create'));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(repo.profiles().length, before + 1);
+    final added = repo.profiles().firstWhere((p) => p.name == 'Weekend');
+    expect(added.segments.length, 3);
+    expect(added.segments.map((s) => s.durationMin), [480, 480, 480]);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('the templates button opens the templates screen', (
+    tester,
+  ) async {
+    final repo = testRepository();
+    await tester.pumpWidget(DayDialApp(repository: repo));
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('Day templates'));
+    await tester.pumpAndSettle(const Duration(milliseconds: 50));
+
+    expect(find.text('Day templates'), findsOneWidget); // the screen's app bar
+    expect(find.text('New template'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox());
   });

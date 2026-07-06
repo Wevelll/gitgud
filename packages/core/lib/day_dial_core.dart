@@ -12,6 +12,7 @@ export 'src/models/recurrence.dart';
 export 'src/models/recurring_task.dart';
 export 'src/models/habit.dart';
 export 'src/models/time_log.dart';
+export 'src/notify/transition_alert.dart';
 export 'src/stats/plan_vs_actual.dart';
 export 'src/repository/day_repository.dart';
 export 'src/repository/day_snapshot.dart';

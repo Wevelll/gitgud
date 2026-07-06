@@ -49,6 +49,11 @@ dependencies:
   # Cross-platform HTTP client — the web companion uses it to sync with the hub.
   http: ^1.2.0
 
+  # Browser Notifications API bindings, used only by the web build's notifier
+  # (packages/lib notifications/notifier_web.dart). Official, minimal, web-only;
+  # desktop delivery is a separate seam and doesn't pull this in.
+  web: ^1.1.0
+
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8

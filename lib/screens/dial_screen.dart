@@ -19,10 +19,15 @@ class DialScreen extends StatefulWidget {
     super.key,
     required this.repository,
     required this.agentHost,
+    this.onDayChanged,
   });
 
   final DayRepository repository;
   final AgentHost agentHost;
+
+  /// Called after an edit that changes the day's block boundaries, so the host
+  /// can reschedule transition notifications. Optional (tests omit it).
+  final VoidCallback? onDayChanged;
 
   @override
   State<DialScreen> createState() => _DialScreenState();
@@ -108,6 +113,7 @@ class _DialScreenState extends State<DialScreen> {
       return;
     }
     setState(() => _profile = _repo.activeProfile());
+    widget.onDayChanged?.call();
   }
 
   void _toggleTask(String taskId, bool currentlyDone) {
@@ -167,6 +173,7 @@ class _DialScreenState extends State<DialScreen> {
         _profile = _repo.activeProfile();
         _selectedId = seg.id;
       });
+      widget.onDayChanged?.call();
     } on InvalidProfileException catch (e) {
       _showError(e.message);
     }
@@ -186,6 +193,7 @@ class _DialScreenState extends State<DialScreen> {
     try {
       _repo.updateBlock(seg.id, name: r.name, colorHex: r.colorHex);
       setState(() => _profile = _repo.activeProfile());
+      widget.onDayChanged?.call();
     } on InvalidProfileException catch (e) {
       _showError(e.message);
     }
@@ -201,6 +209,7 @@ class _DialScreenState extends State<DialScreen> {
         _selectedId = null;
         _subBlocks = _repo.subBlocks(); // deleting a parent drops its detail
       });
+      widget.onDayChanged?.call();
     } on InvalidProfileException catch (e) {
       _showError(e.message);
     }

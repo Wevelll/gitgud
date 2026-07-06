@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import 'agent/agent_host.dart';
 import 'data/repository_factory.dart';
+import 'notifications/notification_scheduler.dart';
+import 'notifications/notifier.dart';
 import 'screens/dial_screen.dart';
 
 Future<void> main() async {
@@ -27,8 +29,21 @@ class _DayDialAppState extends State<DayDialApp> {
     navigatorKey: _navigatorKey,
   );
 
+  // Fires a native notification at each block transition (SPEC §11 MVP).
+  late final NotificationScheduler _scheduler = NotificationScheduler(
+    repo: widget.repository,
+    notifier: createNotifier(),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduler.reschedule();
+  }
+
   @override
   void dispose() {
+    _scheduler.dispose();
     _agent.stop();
     super.dispose();
   }
@@ -44,7 +59,11 @@ class _DayDialAppState extends State<DayDialApp> {
         // Bundled Roboto (see pubspec) — no CDN font fetch, works offline.
         textTheme: ThemeData.dark().textTheme.apply(fontFamily: 'Roboto'),
       ),
-      home: DialScreen(repository: widget.repository, agentHost: _agent),
+      home: DialScreen(
+        repository: widget.repository,
+        agentHost: _agent,
+        onDayChanged: _scheduler.reschedule,
+      ),
     );
   }
 }

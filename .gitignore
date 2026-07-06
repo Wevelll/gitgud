@@ -7,6 +7,9 @@ build/
 # Library packages don't commit their lockfile (apps do). core/mcp are libs.
 packages/*/pubspec.lock
 
+# Golden-test failure artifacts (regenerated on every failed run).
+test/failures/
+
 # IDE / OS
 .idea/
 .vscode/

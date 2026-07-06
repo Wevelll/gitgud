@@ -345,12 +345,14 @@ class DialPainter extends CustomPainter {
     final cur = profile.segmentAt(nowMin);
     final remaining = profile.remainingAt(nowMin);
     final next = profile.nextAfter(nowMin);
+    // The finer sub-block you're inside right now (if the block has detail).
+    final detail = activeSubBlockAt(cur, subBlocks.of(cur.id), nowMin);
 
     _hubText(
       canvas,
       center,
       -22 * f,
-      'NOW',
+      detail == null ? 'NOW' : 'NOW · ${detail.name}',
       TextStyle(color: palette.hubMuted, fontSize: 10 * f, letterSpacing: 1.5),
     );
     _hubText(

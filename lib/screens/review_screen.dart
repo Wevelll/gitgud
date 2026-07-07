@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:day_dial_core/day_dial_core.dart';
 import 'package:flutter/material.dart';
 
 import '../calendar/calendar_service.dart';
+import '../export/exporter.dart';
 import '../painters/dial_painter.dart' show parseHexColor;
 
 /// Periodic review (SPEC §12.7): a week / month / year look-back over the
@@ -12,10 +15,15 @@ class ReviewScreen extends StatefulWidget {
     super.key,
     required this.repository,
     this.calendarService,
+    this.exporter,
   });
 
   final DayRepository repository;
   final CalendarService? calendarService;
+
+  /// File-export seam (SPEC §12.3). Defaults to the platform exporter; tests
+  /// inject a fake.
+  final Exporter? exporter;
 
   @override
   State<ReviewScreen> createState() => _ReviewScreenState();
@@ -27,6 +35,29 @@ class _ReviewScreenState extends State<ReviewScreen> {
   static const _panel = Color(0xFF0E1322);
 
   DayRepository get _repo => widget.repository;
+
+  late final Exporter _exporter = widget.exporter ?? createExporter();
+
+  Future<void> _export(String kind) async {
+    final today = CivilDate.fromDateTime(DateTime.now()).iso;
+    final (String name, String contents) = switch (kind) {
+      'csv' => ('daydial-logs-$today.csv', timeLogsToCsv(_repo.logs())),
+      'ics' => ('daydial-logs-$today.ics', timeLogsToIcs(_repo.logs())),
+      _ => (
+          'daydial-backup-$today.json',
+          const JsonEncoder.withIndent('  ').convert(_repo.snapshot().toJson()),
+        ),
+    };
+    try {
+      final where = await _exporter.save(name, contents);
+      if (mounted) _toast('Saved $name to $where');
+    } catch (e) {
+      if (mounted) _toast('Export failed: $e');
+    }
+  }
+
+  void _toast(String message) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
 
   PeriodicReview _review() {
     final today = CivilDate.fromDateTime(DateTime.now());
@@ -83,6 +114,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 else
                   for (final v in review.variance)
                     if (v.plannedMin > 0 || v.actualMin > 0) _varianceRow(v),
+                const SizedBox(height: 16),
+                _sectionLabel('EXPORT'),
+                _exportBar(),
               ],
             ),
           ),
@@ -166,6 +200,28 @@ class _ReviewScreenState extends State<ReviewScreen> {
       ],
     );
   }
+
+  Widget _exportBar() => Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          OutlinedButton.icon(
+            onPressed: () => _export('csv'),
+            icon: const Icon(Icons.table_chart_outlined, size: 18),
+            label: const Text('Logs CSV'),
+          ),
+          OutlinedButton.icon(
+            onPressed: () => _export('ics'),
+            icon: const Icon(Icons.event_note_outlined, size: 18),
+            label: const Text('Logs ICS'),
+          ),
+          OutlinedButton.icon(
+            onPressed: () => _export('json'),
+            icon: const Icon(Icons.data_object, size: 18),
+            label: const Text('Backup JSON'),
+          ),
+        ],
+      );
 
   Widget _sectionLabel(String text) => Padding(
         padding: const EdgeInsets.only(bottom: 8, top: 4),

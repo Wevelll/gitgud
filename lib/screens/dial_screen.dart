@@ -9,6 +9,7 @@ import '../calendar/calendar_service.dart';
 import '../painters/dial_painter.dart';
 import '../widgets/dial_view.dart';
 import 'agent_screen.dart';
+import 'calendar_settings_screen.dart';
 import 'focus_screen.dart';
 import 'review_screen.dart';
 import 'stats_screen.dart';
@@ -503,6 +504,20 @@ class _DialScreenState extends State<DialScreen> {
     );
   }
 
+  Future<void> _openCalendars() async {
+    final service = widget.calendarService;
+    if (service == null) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CalendarSettingsScreen(
+          service: service,
+          onChanged: () => setState(() {}), // redraw overlay
+        ),
+      ),
+    );
+    setState(() {}); // pick up any source/overlay changes on return
+  }
+
   void _openAgent() {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => AgentScreen(host: widget.agentHost)),
@@ -550,69 +565,86 @@ class _DialScreenState extends State<DialScreen> {
   }
 
   Widget _header(Segment cur) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
+    // Two rows so the growing set of actions never crowds the title/toggle on a
+    // narrow header: title + mode toggle on top, action icons beneath.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Flexible(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _profile.name.toUpperCase(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11,
-                  letterSpacing: 2,
-                  color: Colors.white.withValues(alpha: 0.45),
-                ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _profile.name.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      letterSpacing: 2,
+                      color: Colors.white.withValues(alpha: 0.45),
+                    ),
+                  ),
+                  Text(
+                    formatMinuteOfDay(_nowMin),
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontFeatures: [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ],
               ),
-              Text(
-                formatMinuteOfDay(_nowMin),
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontFeatures: [FontFeature.tabularFigures()],
-                ),
-              ),
-            ],
-          ),
-        ),
-        // Compact, so the four actions + mode toggle never overflow the header
-        // on narrow widths.
-        IconButton(
-          tooltip: 'Day templates',
-          visualDensity: VisualDensity.compact,
-          onPressed: _openTemplates,
-          icon: const Icon(Icons.calendar_month_outlined),
-        ),
-        IconButton(
-          tooltip: 'Plan vs actual',
-          visualDensity: VisualDensity.compact,
-          onPressed: _openStats,
-          icon: const Icon(Icons.insights),
-        ),
-        IconButton(
-          tooltip: 'Review',
-          visualDensity: VisualDensity.compact,
-          onPressed: _openReview,
-          icon: const Icon(Icons.summarize_outlined),
-        ),
-        IconButton(
-          tooltip: 'Agent',
-          visualDensity: VisualDensity.compact,
-          onPressed: _openAgent,
-          icon: const Icon(Icons.smart_toy_outlined),
-        ),
-        const SizedBox(width: 4),
-        SegmentedButton<DialMode>(
-          style: const ButtonStyle(visualDensity: VisualDensity.compact),
-          segments: const [
-            ButtonSegment(value: DialMode.compass, label: Text('Compass')),
-            ButtonSegment(value: DialMode.clock, label: Text('Clock')),
+            ),
+            SegmentedButton<DialMode>(
+              style: const ButtonStyle(visualDensity: VisualDensity.compact),
+              segments: const [
+                ButtonSegment(value: DialMode.compass, label: Text('Compass')),
+                ButtonSegment(value: DialMode.clock, label: Text('Clock')),
+              ],
+              selected: {_mode},
+              showSelectedIcon: false,
+              onSelectionChanged: (s) => setState(() => _mode = s.first),
+            ),
           ],
-          selected: {_mode},
-          showSelectedIcon: false,
-          onSelectionChanged: (s) => setState(() => _mode = s.first),
+        ),
+        const SizedBox(height: 4),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            IconButton(
+              tooltip: 'Day templates',
+              visualDensity: VisualDensity.compact,
+              onPressed: _openTemplates,
+              icon: const Icon(Icons.calendar_month_outlined),
+            ),
+            IconButton(
+              tooltip: 'Plan vs actual',
+              visualDensity: VisualDensity.compact,
+              onPressed: _openStats,
+              icon: const Icon(Icons.insights),
+            ),
+            IconButton(
+              tooltip: 'Review',
+              visualDensity: VisualDensity.compact,
+              onPressed: _openReview,
+              icon: const Icon(Icons.summarize_outlined),
+            ),
+            if (widget.calendarService != null)
+              IconButton(
+                tooltip: 'Calendars',
+                visualDensity: VisualDensity.compact,
+                onPressed: _openCalendars,
+                icon: const Icon(Icons.event_outlined),
+              ),
+            IconButton(
+              tooltip: 'Agent',
+              visualDensity: VisualDensity.compact,
+              onPressed: _openAgent,
+              icon: const Icon(Icons.smart_toy_outlined),
+            ),
+          ],
         ),
       ],
     );

@@ -31,6 +31,19 @@ class CalendarService {
 
   List<CalendarSource> get sources => List.unmodifiable(_sources);
 
+  /// Adds a source. Call [refresh] afterwards to pull its events.
+  void addSource(CalendarSource source) => _sources.add(source);
+
+  /// Removes the source with [id] (no-op if unknown).
+  void removeSource(String id) => _sources.removeWhere((s) => s.id == id);
+
+  /// Replaces the source sharing [CalendarSource.id] (e.g. after an edit or an
+  /// enable/disable toggle). No-op if unknown.
+  void replaceSource(CalendarSource source) {
+    final i = _sources.indexWhere((s) => s.id == source.id);
+    if (i != -1) _sources[i] = source;
+  }
+
   /// The color to draw a source's events in, defaulting to a neutral calendar
   /// accent for an unknown id.
   String colorForSource(String sourceId) {

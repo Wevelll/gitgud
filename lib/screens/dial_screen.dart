@@ -88,6 +88,7 @@ class _DialScreenState extends State<DialScreen> {
   Future<void> _refreshCalendar() async {
     final service = widget.calendarService;
     if (service == null) return;
+    await service.loadSources(); // durable subscriptions (desktop)
     await service.refresh();
     if (mounted) setState(() {});
   }

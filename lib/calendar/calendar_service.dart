@@ -1,6 +1,8 @@
 import 'package:day_dial_core/day_dial_core.dart';
 import 'package:http/http.dart' as http;
 
+import 'source_store.dart';
+
 /// Fetches the raw iCalendar body for a source. Injectable so tests can supply
 /// canned ICS with no network.
 typedef IcsFetcher = Future<String> Function(CalendarSource source);
@@ -18,11 +20,14 @@ class CalendarService {
   CalendarService({
     List<CalendarSource> sources = const [],
     IcsFetcher? fetcher,
+    CalendarSourceStore? store,
   })  : _sources = [...sources],
-        _fetch = fetcher ?? _httpFetch;
+        _fetch = fetcher ?? _httpFetch,
+        _store = store ?? const NullCalendarSourceStore();
 
   final List<CalendarSource> _sources;
   final IcsFetcher _fetch;
+  final CalendarSourceStore _store;
 
   CalendarProvider _provider = InMemoryCalendarProvider(const []);
 
@@ -30,6 +35,21 @@ class CalendarService {
   CalendarProvider get provider => _provider;
 
   List<CalendarSource> get sources => List.unmodifiable(_sources);
+
+  /// Loads the persisted source list (if any), replacing the current one.
+  /// Called once at startup before the first [refresh].
+  Future<void> loadSources() async {
+    final loaded = await _store.load();
+    if (loaded.isNotEmpty) {
+      _sources
+        ..clear()
+        ..addAll(loaded);
+    }
+  }
+
+  /// Writes the current source list to the store (durable on desktop, a no-op
+  /// on web / when no store is wired).
+  Future<void> persist() => _store.save(_sources);
 
   /// Adds a source. Call [refresh] afterwards to pull its events.
   void addSource(CalendarSource source) => _sources.add(source);

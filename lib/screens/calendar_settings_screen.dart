@@ -44,6 +44,12 @@ class _CalendarSettingsScreenState extends State<CalendarSettingsScreen> {
     }
   }
 
+  /// Persists the (mutated) source list, then re-pulls events.
+  Future<void> _persistAndRefresh() async {
+    await _service.persist();
+    await _refresh();
+  }
+
   Future<void> _addDialog() async {
     final result = await showDialog<CalendarSource>(
       context: context,
@@ -52,19 +58,19 @@ class _CalendarSettingsScreenState extends State<CalendarSettingsScreen> {
     if (result == null) return;
     _service.addSource(result);
     setState(() {});
-    await _refresh();
+    await _persistAndRefresh();
   }
 
   void _toggle(CalendarSource s, bool enabled) {
     _service.replaceSource(s.copyWith(enabled: enabled));
     setState(() {});
-    _refresh();
+    _persistAndRefresh();
   }
 
   void _remove(CalendarSource s) {
     _service.removeSource(s.id);
     setState(() {});
-    _refresh();
+    _persistAndRefresh();
   }
 
   @override

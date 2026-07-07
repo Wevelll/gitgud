@@ -330,4 +330,48 @@ void main() {
       expect(specs['delete_sub_block']!.destructive, isTrue);
     });
   });
+
+  group('get_calendar_events', () {
+    test('returns [] when no calendar is wired (local-first default)', () async {
+      final tools = DayDialTools(repo(), CallbackConsent((_) async => true),
+          clock: fixedClock);
+      final events = await tools.call('get_calendar_events') as List;
+      expect(events, isEmpty);
+    });
+
+    test('is a read tool — never touches the consent gate', () async {
+      final gate = CallbackConsent((_) async => true);
+      final tools = DayDialTools(repo(), gate, clock: fixedClock);
+      await tools.call('get_calendar_events');
+      expect(gate.seen, isEmpty);
+    });
+
+    test('surfaces overlay events for a date, expanding recurrence', () async {
+      final calendar = InMemoryCalendarProvider([
+        CalendarEvent(
+          id: 'standup',
+          sourceId: 'work',
+          uid: 'standup',
+          title: 'Standup',
+          startTs: '2026-07-01T09:00:00',
+          endTs: '2026-07-01T09:15:00',
+          rrule: 'FREQ=DAILY',
+          calendarName: 'Work',
+        ),
+      ]);
+      final tools = DayDialTools(repo(), CallbackConsent((_) async => true),
+          clock: fixedClock, calendar: calendar);
+
+      final events =
+          await tools.call('get_calendar_events', {'date': '2026-07-03'})
+              as List;
+      expect(events, hasLength(1));
+      final e = events.single as Map;
+      expect(e['title'], 'Standup');
+      expect(e['start'], '2026-07-03T09:00:00');
+      expect(e['source'], 'work');
+      expect(e['calendar'], 'Work');
+      expect(e['allDay'], isFalse);
+    });
+  });
 }

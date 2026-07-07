@@ -57,11 +57,18 @@ class DayDialTools {
     this.repo,
     this.consent, {
     DateTime Function()? clock,
-  }) : _clock = clock ?? DateTime.now;
+    CalendarProvider? calendar,
+  })  : _clock = clock ?? DateTime.now,
+        _calendar = calendar;
 
   final DayRepository repo;
   final ConsentGate consent;
   final DateTime Function() _clock;
+
+  /// Optional read-only calendar overlay (SPEC §12.1). When null,
+  /// `get_calendar_events` returns an empty list — the app is fully functional
+  /// with no calendar wired (local-first).
+  final CalendarProvider? _calendar;
 
   /// The full tool catalog, for MCP `tools/list`.
   static final List<ToolSpec> specs = [
@@ -197,6 +204,12 @@ class DayDialTools {
         'end'
       ]),
       mutates: true,
+    ),
+    ToolSpec(
+      name: 'get_calendar_events',
+      description: 'Read-only calendar events overlaying a day (SPEC §12.1). '
+          'Never segments; recurring events are expanded to instances.',
+      inputSchema: _schema({'date': _dateArg}),
     ),
     ToolSpec(
       name: 'get_habits',
@@ -360,6 +373,8 @@ class DayDialTools {
         return _getRecurringTasks(args);
       case 'get_stats':
         return _getStats(args);
+      case 'get_calendar_events':
+        return _getCalendarEvents(args);
       case 'add_block':
         return _addBlock(args);
       case 'update_block':
@@ -499,6 +514,23 @@ class DayDialTools {
           }
       ],
     };
+  }
+
+  List<Map<String, Object?>> _getCalendarEvents(Map<String, Object?> args) {
+    final calendar = _calendar;
+    if (calendar == null) return const [];
+    final date = _date(args['date']);
+    return [
+      for (final e in calendar.eventsOn(date))
+        {
+          'title': e.title,
+          'start': e.startTs,
+          'end': e.endTs,
+          'allDay': e.allDay,
+          'source': e.sourceId,
+          'calendar': e.calendarName,
+        }
+    ];
   }
 
   // ---- writes ---------------------------------------------------------------

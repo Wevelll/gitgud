@@ -1,0 +1,49 @@
+import 'package:day_dial/main.dart';
+import 'package:day_dial/screens/review_screen.dart';
+import 'package:day_dial_core/day_dial_core.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'support.dart';
+
+void main() {
+  testWidgets('review shows completion, streaks, and category time', (
+    tester,
+  ) async {
+    final repo = testRepository();
+    final today = CivilDate.fromDateTime(DateTime.now());
+    // Complete the daily "Take meds" task today -> a current streak of 1.
+    final task = repo.tasks().firstWhere((t) => t.label == 'Take meds');
+    repo.completeTask(task.id, today);
+    // A tracked Deep work actual so the category section has content.
+    repo.logActual(
+      category: 'Deep work',
+      startTs: DateTime.utc(today.year, today.month, today.day, 9).toIso8601String(),
+      endTs:
+          DateTime.utc(today.year, today.month, today.day, 10, 30).toIso8601String(),
+    );
+
+    await tester.pumpWidget(MaterialApp(home: ReviewScreen(repository: repo)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Review'), findsOneWidget); // app bar
+    expect(find.text('STREAKS'), findsOneWidget);
+    expect(find.textContaining('🔥'), findsWidgets); // a streak pill
+    expect(find.text('Take meds'), findsOneWidget);
+    expect(find.text('Deep work'), findsOneWidget);
+    expect(find.text('Year'), findsOneWidget); // annual range offered
+  });
+
+  testWidgets('the review button opens the review screen', (tester) async {
+    await tester.pumpWidget(DayDialApp(repository: testRepository()));
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('Review'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('STREAKS'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+}

@@ -9,6 +9,7 @@ import '../calendar/calendar_service.dart';
 import '../painters/dial_painter.dart';
 import '../widgets/dial_view.dart';
 import 'agent_screen.dart';
+import 'review_screen.dart';
 import 'stats_screen.dart';
 import 'templates_screen.dart';
 
@@ -473,6 +474,17 @@ class _DialScreenState extends State<DialScreen> {
     ).push(MaterialPageRoute(builder: (_) => StatsScreen(repository: _repo)));
   }
 
+  void _openReview() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ReviewScreen(
+          repository: _repo,
+          calendarService: widget.calendarService,
+        ),
+      ),
+    );
+  }
+
   void _openAgent() {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => AgentScreen(host: widget.agentHost)),
@@ -547,24 +559,35 @@ class _DialScreenState extends State<DialScreen> {
             ],
           ),
         ),
-        const SizedBox(width: 4),
+        // Compact, so the four actions + mode toggle never overflow the header
+        // on narrow widths.
         IconButton(
           tooltip: 'Day templates',
+          visualDensity: VisualDensity.compact,
           onPressed: _openTemplates,
           icon: const Icon(Icons.calendar_month_outlined),
         ),
         IconButton(
           tooltip: 'Plan vs actual',
+          visualDensity: VisualDensity.compact,
           onPressed: _openStats,
           icon: const Icon(Icons.insights),
         ),
         IconButton(
+          tooltip: 'Review',
+          visualDensity: VisualDensity.compact,
+          onPressed: _openReview,
+          icon: const Icon(Icons.summarize_outlined),
+        ),
+        IconButton(
           tooltip: 'Agent',
+          visualDensity: VisualDensity.compact,
           onPressed: _openAgent,
           icon: const Icon(Icons.smart_toy_outlined),
         ),
         const SizedBox(width: 4),
         SegmentedButton<DialMode>(
+          style: const ButtonStyle(visualDensity: VisualDensity.compact),
           segments: const [
             ButtonSegment(value: DialMode.compass, label: Text('Compass')),
             ButtonSegment(value: DialMode.clock, label: Text('Clock')),

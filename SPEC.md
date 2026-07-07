@@ -38,6 +38,9 @@ Both read from the same model; only the rendering differs.
 - Segments may **wrap midnight** (e.g. Sleep 23:00–07:00): stored as `end_min < start_min`.
 - **Day profiles:** distinct segment layouts per profile (e.g. Weekday / Weekend / Deep-work day), each assignable to weekdays. Switching profile swaps the ring.
 
+### 2.5 Overlay layer (calendar events)
+Calendar events are **not** segments — they are discrete, sparse, overlapping, point-in-time items and must never enter the segment ring (doing so breaks the constant-sum + boundary-drag invariants). They render as a **separate read-only overlay** on top of the ring: thin arcs / pin markers at their clock position, visually distinct from filled segments (outline / ticks, dimmer). Overlapping events stack outward on concentric tracks. Full calendar spec in §12.
+
 ---
 
 ## 3. Recurring untimed tasks
@@ -53,6 +56,7 @@ Tasks that must get done but aren't tied to a clock slot ("take meds", "20 min s
 - **Planned:** the segments of the active profile = the intended day.
 - **Actual:** append-only **time logs** recording what actually happened (start/end + category). Sources: manual, "start/stop now" on a segment, or agent-logged via MCP.
 - **Variance:** per-category planned-vs-actual over a range (day/week/month) — e.g. "planned 8h sleep, averaging 6h20 (−1h40)". Simple, honest numbers; charts optional.
+- **Calendar as a third lens [v1]:** booked calendar events (§12) are a read-only source alongside planned-segments and actual-logs — e.g. "3h of meetings booked against a 2h 'Deep Work' segment." Events are never counted as actuals; they surface plan-vs-commitment drift.
 - **History:** browse past days, see drift trends over weeks.
 
 ---
@@ -65,9 +69,13 @@ segments(id, profile_id, start_min, end_min, name, color, sort_order)   -- end_m
 recurring_tasks(id, label, color, recurrence_rule, created_at, archived)
 task_completions(id, task_id, date, completed_at)
 time_logs(id, date, start_ts, end_ts, category, segment_id NULL, note, source)   -- actuals, append-only
+calendar_sources(id, kind, url NULL, cal_id NULL, name, color, enabled, last_sync_ts)   -- caldav|ics|device; read-only mirror config
+calendar_events(id, source_id, uid, start_ts, end_ts, all_day, title, fetched_at)       -- mirrored, disposable cache; NOT in CRDT doc
 settings(key, value)
 sync_meta(doc_id, clock, ...)   -- CRDT state (see §7)
 ```
+
+- **Calendar tables are a disposable read-only cache**, outside the CRDT mutable doc — refetched from source, never authored locally, never synced as user data.
 
 - Times of day: minutes-since-midnight (int). Timestamps: ISO 8601. Dates: `YYYY-MM-DD`.
 - **CRDT boundary:** the mutable document (`profiles` + `segments` + `recurring_tasks`) is wrapped in an Automerge/Yjs-style CRDT doc per user so concurrent edits (phone, desktop, agent) merge cleanly. `time_logs` are append-only and merge trivially.
@@ -95,6 +103,7 @@ list_upcoming(count=3, from?)                -> [{ name, start, end, inMinutes }
 get_recurring_tasks(status="all", date?)     -> [{ id, label, recurrence, doneToday }]
 get_stats(range="week", metric="plan_vs_actual")
                                              -> { perCategory:[{category, plannedMin, actualMin, deltaMin}] }
+get_calendar_events(date?)                   -> [{ title, start, end, allDay, source, calendar }]   # read-only overlay
 
 # Write (consent-gated)
 add_block(name, start, end, color?, profile?)          -> block
@@ -149,9 +158,9 @@ log_actual(category|blockId, start, end, note?)        -> log       # record wha
 ## 11. MVP scope & roadmap
 **MVP (ship this):** dial in both modes • rescalable + custom segments • recurring untimed tasks (tray) • segment-transition notifications • local-only SQLite, no account • embedded stdio MCP server (same-machine) • desktop (Win/Mac/Linux) + one native widget.
 
-**v1:** plan-vs-actual tracking + stats • day profiles • CRDT sync (LAN hub + mDNS pairing) • web companion • Streamable HTTP MCP over LAN.
+**v1:** plan-vs-actual tracking + stats • day profiles • CRDT sync (LAN hub + mDNS pairing) • web companion • Streamable HTTP MCP over LAN • **read-only calendar overlay (CalDAV/ICS + native device calendar) feeding plan-vs-actual** • **idle/away detection + notifications** • **export (ICS/CSV/JSON)** • **template sharing (export/import day profiles)** • **streaks for recurring tasks/habits** • **focus/Pomodoro on a segment** • **periodic review screen (week/month/year)**. Detailed specs in §12.
 
-**Later:** mobile apps + native widgets/complications • self-hosted relay • optional read-only calendar overlay • richer analytics.
+**Later:** mobile apps + native widgets/complications • self-hosted relay • **automatic time tracking (passive active-window/idle capture → auto-filled actuals, desktop-first)** • two-way calendar write-back • direct OAuth calendar providers (Google/Microsoft) • richer analytics.
 
 **Open decisions / risks:**
 - Midnight-top vs noon-top (A/B).
@@ -159,3 +168,45 @@ log_actual(category|blockId, start, end, note?)        -> log       # record wha
 - CRDT library choice (Automerge vs Yjs vs custom LWW).
 - Whether mobile hosts its own MCP server or stays client-only in v1.
 - Store strategy: RuStore-first vs direct-desktop-first for revenue.
+- Calendar poll interval + battery cost on mobile (device-calendar reads vs ICS network polls).
+
+---
+
+## 12. v1 feature detail specs
+
+### 12.1 Calendar integration (read-only)
+- **Model:** discrete overlay events, never segments (§2.5). Mirrored into a disposable cache (§5), outside the CRDT doc.
+- **Sources (v1):**
+  1. **CalDAV + ICS subscription URLs** — standard protocol; Google/Apple/Fastmail/Nextcloud/self-hosted. User pastes a URL or CalDAV creds; poll on interval. Pure-Dart HTTP + ICS parser. *Parser is platform-agnostic → lives in `core`; the network fetch lives in the UI/host layer (no `dart:io` in `core`).*
+  2. **Native device calendar** (mobile, Phase 2) via `device_calendar` — reads the OS calendar the user already configured; no network we own.
+- **Direction:** read-only. Two-way write-back and direct OAuth providers are explicitly **Later**.
+- **Rendering:** thin arcs / pins on a concentric overlay track above the ring; distinct styling; all-day events shown in the hub, not on the ring; overlapping events stack outward.
+- **Plan-vs-actual:** events are a third comparison lens (§4), never counted as actuals.
+- **MCP:** `get_calendar_events(date?)` (read, no consent gate).
+- **Privacy:** opt-in, off by default; event data never leaves the device and is never synced as user data.
+
+### 12.2 Idle / away detection
+- **Purpose:** keep tracking honest without full auto-capture. On desktop idle (no input) or mobile away, and on return, nudge: "You were away 40 min during *Work* — log it, or adjust?"
+- **Signals:** desktop OS idle time; mobile app-lifecycle + notifications.
+- **Notifications:** local only (fits §6 no-phone-home); mobile uses the platform notifier, extending the existing segment-transition notification path.
+- **Never auto-writes** an actual — always a prompt. (Silent auto-fill is the *Later* automatic-tracking feature.)
+
+### 12.3 Export
+- Formats: **ICS** (segments/day as events), **CSV** (time_logs + variance rows), **JSON** (full local dump: profiles, segments, tasks, logs).
+- Local file export only; no upload. Export logic in `core` (serialization); file IO in the host layer.
+
+### 12.4 Template sharing
+- Export/import a **day profile** (segments + colors + metadata) as a small portable file/string — "share my Deep-Work day." No server, no account; a light growth loop.
+- Import is additive (creates a new profile); never overwrites existing profiles silently.
+
+### 12.5 Streaks (recurring tasks / habits)
+- Built on existing `task_completions` per-date data. Show current + longest streak per habit; grace rules per recurrence (a weekly task doesn't break on off-days).
+- Pure `core` computation over completion history; UI is a read view.
+
+### 12.6 Focus / Pomodoro
+- Start a focus timer bound to the current (or chosen) segment; on completion it **auto-logs an actual** for that segment/category. Optional interval/break config.
+- Reuses `log_actual`; timer state is UI-local, the resulting log is the durable artifact.
+
+### 12.7 Periodic review (week / month / year)
+- One screen, switchable range, over the existing plan-vs-actual + completion primitives: variance per category, streak summary, drift trends, calendar-vs-plan load.
+- Read-only aggregation in `core` (extends §4 stats); no new mutable state.

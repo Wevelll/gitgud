@@ -37,6 +37,7 @@ class DialPainter extends CustomPainter {
     required this.palette,
     this.selectedSegmentId,
     this.actuals = const [],
+    this.overlay = const [],
     this.subBlocks = const SubBlockPlan.empty(),
   });
 
@@ -48,6 +49,12 @@ class DialPainter extends CustomPainter {
 
   /// Logged actuals for the day, drawn as a thin inner ring against the plan.
   final List<ActualArc> actuals;
+
+  /// Read-only calendar events (SPEC §2.5/§12.1), drawn as thin arcs on a
+  /// concentric track just outside the wedge ring — a layer *above* the plan,
+  /// never a segment. Overlapping events are pre-assigned to [OverlayArc.track]
+  /// lanes (by `overlayFor` in core).
+  final List<OverlayArc> overlay;
 
   /// Sparse sub-block overlay. A segment "reveals" its sub-blocks — its wedge
   /// subdivides in place into them — when it's the active (now) block or the
@@ -105,6 +112,7 @@ class DialPainter extends CustomPainter {
     _drawWedges(canvas, f, pt);
     _drawActuals(canvas, f, pt);
     _drawTicks(canvas, pt);
+    _drawOverlay(canvas, f, pt);
     _drawLabels(canvas, thetaDeg, pt);
     _drawNumerals(canvas, thetaDeg, pt);
 
@@ -225,6 +233,37 @@ class DialPainter extends CustomPainter {
         Paint()
           ..style = PaintingStyle.fill
           ..color = parseHexColor(a.colorHex).withValues(alpha: 0.95),
+      );
+    }
+  }
+
+  // Calendar-overlay track geometry (reference units, scaled by `f`). Sits just
+  // outside the wedge ring; overlapping events step outward one lane at a time.
+  static const _ovBase = 152.5; // first lane inner radius
+  static const _ovThick = 3.5; // arc thickness
+  static const _ovStep = 5.0; // lane-to-lane spacing
+  static const _ovMaxTrack = 3; // beyond this, clamp so we stay inside numerals
+
+  /// Draws read-only calendar events as thin arcs on concentric lanes just
+  /// outside the wedges (SPEC §2.5). Rounded caps so short meetings read as pills
+  /// rather than hairlines.
+  void _drawOverlay(
+    Canvas canvas,
+    double f,
+    Offset Function(double, double) pt,
+  ) {
+    if (overlay.isEmpty) return;
+    for (final ev in overlay) {
+      final sweep = _timeAngleDeg((ev.endMin - ev.startMin).clamp(0, 1440));
+      if (sweep <= 0) continue;
+      final track = ev.track > _ovMaxTrack ? _ovMaxTrack : ev.track;
+      final rIn = _ovBase + track * _ovStep;
+      final a0 = _timeAngleDeg(ev.startMin);
+      canvas.drawPath(
+        _ringSector(pt, a0, a0 + sweep, rIn, rIn + _ovThick, f, sweep),
+        Paint()
+          ..style = PaintingStyle.fill
+          ..color = parseHexColor(ev.colorHex).withValues(alpha: 0.92),
       );
     }
   }
@@ -443,7 +482,8 @@ class DialPainter extends CustomPainter {
       old.selectedSegmentId != selectedSegmentId ||
       old.palette != palette ||
       old.subBlocks != subBlocks ||
-      !listEquals(old.actuals, actuals);
+      !listEquals(old.actuals, actuals) ||
+      !listEquals(old.overlay, overlay);
 }
 
 /// A logged actual placed on the dial: a `[startMin, endMin)` arc (minutes since
@@ -468,6 +508,34 @@ class ActualArc {
 
   @override
   int get hashCode => Object.hash(startMin, endMin, colorHex);
+}
+
+/// A read-only calendar event placed on the dial: a `[startMin, endMin)` arc
+/// (already clipped to the day, so it never wraps) on lane [track], in its
+/// calendar's color. Built from a core `OverlayEvent` by the screen.
+class OverlayArc {
+  const OverlayArc({
+    required this.startMin,
+    required this.endMin,
+    required this.track,
+    required this.colorHex,
+  });
+
+  final int startMin;
+  final int endMin;
+  final int track;
+  final String colorHex;
+
+  @override
+  bool operator ==(Object other) =>
+      other is OverlayArc &&
+      other.startMin == startMin &&
+      other.endMin == endMin &&
+      other.track == track &&
+      other.colorHex == colorHex;
+
+  @override
+  int get hashCode => Object.hash(startMin, endMin, track, colorHex);
 }
 
 /// Colors for the dial, so the painter stays theme-agnostic.

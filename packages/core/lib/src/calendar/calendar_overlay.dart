@@ -10,6 +10,7 @@ import 'calendar_event.dart';
 class OverlayEvent {
   const OverlayEvent({
     required this.eventId,
+    required this.sourceId,
     required this.title,
     required this.startMin,
     required this.endMin,
@@ -19,6 +20,10 @@ class OverlayEvent {
   });
 
   final String eventId;
+
+  /// The [CalendarSource] this event came from — lets the UI color it per
+  /// calendar.
+  final String sourceId;
   final String title;
 
   /// Minute-of-day start/end for the clipped span, `[0, 1440]`. `endMin` may be
@@ -38,6 +43,7 @@ class OverlayEvent {
   bool operator ==(Object other) =>
       other is OverlayEvent &&
       other.eventId == eventId &&
+      other.sourceId == sourceId &&
       other.title == title &&
       other.startMin == startMin &&
       other.endMin == endMin &&
@@ -46,8 +52,8 @@ class OverlayEvent {
       other.calendarName == calendarName;
 
   @override
-  int get hashCode =>
-      Object.hash(eventId, title, startMin, endMin, allDay, track, calendarName);
+  int get hashCode => Object.hash(
+      eventId, sourceId, title, startMin, endMin, allDay, track, calendarName);
 
   @override
   String toString() => allDay
@@ -91,6 +97,7 @@ DayOverlay overlayFor(CivilDate date, Iterable<CalendarEvent> events) {
       if (!date.isBefore(startDate) && date.isBefore(endDate)) {
         allDay.add(OverlayEvent(
           eventId: e.id,
+          sourceId: e.sourceId,
           title: e.title,
           startMin: 0,
           endMin: minutesPerDay,
@@ -108,6 +115,7 @@ DayOverlay overlayFor(CivilDate date, Iterable<CalendarEvent> events) {
     if (segEnd <= segStart) continue; // zero-length or ends at this midnight
     clipped.add(OverlayEvent(
       eventId: e.id,
+      sourceId: e.sourceId,
       title: e.title,
       startMin: segStart,
       endMin: segEnd,
@@ -144,6 +152,7 @@ List<OverlayEvent> _assignTracks(List<OverlayEvent> events) {
     }
     out.add(OverlayEvent(
       eventId: e.eventId,
+      sourceId: e.sourceId,
       title: e.title,
       startMin: e.startMin,
       endMin: e.endMin,

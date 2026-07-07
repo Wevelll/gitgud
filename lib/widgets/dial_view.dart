@@ -16,6 +16,7 @@ class DialView extends StatelessWidget {
     this.selectedSegmentId,
     this.onSegmentTapped,
     this.actuals = const [],
+    this.overlay = const [],
     this.subBlocks = const SubBlockPlan.empty(),
     this.palette = DialPalette.dark,
   });
@@ -30,6 +31,9 @@ class DialView extends StatelessWidget {
 
   /// Logged actuals to overlay on the inner ring.
   final List<ActualArc> actuals;
+
+  /// Read-only calendar events, drawn on a concentric track outside the ring.
+  final List<OverlayArc> overlay;
 
   /// Sparse sub-block overlay; the active/selected block subdivides into these.
   final SubBlockPlan subBlocks;
@@ -55,6 +59,7 @@ class DialView extends StatelessWidget {
                 palette: palette,
                 selectedSegmentId: selectedSegmentId,
                 actuals: actuals,
+                overlay: overlay,
                 subBlocks: subBlocks,
               ),
             ),

@@ -127,4 +127,32 @@ void main() {
       matchesGoldenFile('goldens/actuals_1500.png'),
     );
   });
+
+  testWidgets('clock at 10:00 with a calendar overlay (lane-packed)', (
+    tester,
+  ) async {
+    // Two overlapping meetings (different lanes) plus a standalone one, drawn as
+    // thin arcs on the concentric overlay track outside the wedges.
+    await tester.pumpWidget(
+      host(
+        DialView(
+          profile: testProfile(),
+          nowMin: 600,
+          mode: DialMode.clock,
+          overlay: const [
+            OverlayArc(
+                startMin: 540, endMin: 600, track: 0, colorHex: '#7C7CA8'),
+            OverlayArc(
+                startMin: 570, endMin: 660, track: 1, colorHex: '#5A9FB0'),
+            OverlayArc(
+                startMin: 780, endMin: 840, track: 0, colorHex: '#7C7CA8'),
+          ],
+        ),
+      ),
+    );
+    await expectLater(
+      find.byType(DialView),
+      matchesGoldenFile('goldens/overlay_1000.png'),
+    );
+  });
 }

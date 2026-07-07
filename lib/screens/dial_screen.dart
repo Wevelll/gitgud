@@ -5,6 +5,7 @@ import 'package:day_dial_core/day_dial_core.dart';
 import 'package:flutter/material.dart';
 
 import '../agent/agent_host.dart';
+import '../calendar/calendar_service.dart';
 import '../painters/dial_painter.dart';
 import '../widgets/dial_view.dart';
 import 'agent_screen.dart';
@@ -20,11 +21,16 @@ class DialScreen extends StatefulWidget {
     super.key,
     required this.repository,
     required this.agentHost,
+    this.calendarService,
     this.onDayChanged,
   });
 
   final DayRepository repository;
   final AgentHost agentHost;
+
+  /// Optional read-only calendar overlay (SPEC §12.1). Null keeps the dial
+  /// calendar-free (local-first default).
+  final CalendarService? calendarService;
 
   /// Called after an edit that changes the day's block boundaries, so the host
   /// can reschedule transition notifications. Optional (tests omit it).
@@ -71,6 +77,16 @@ class _DialScreenState extends State<DialScreen> {
     super.initState();
     _loadFromRepo();
     _startClock();
+    _refreshCalendar();
+  }
+
+  /// Pulls the calendar overlay in the background (if a service is wired). A
+  /// failed fetch is non-fatal — the dial just shows no events (local-first).
+  Future<void> _refreshCalendar() async {
+    final service = widget.calendarService;
+    if (service == null) return;
+    await service.refresh();
+    if (mounted) setState(() {});
   }
 
   void _loadFromRepo() {
@@ -394,6 +410,26 @@ class _DialScreenState extends State<DialScreen> {
     return arcs;
   }
 
+  /// Today's calendar overlay: timed events as dial arcs (lane-packed by core),
+  /// colored by their source.
+  DayOverlay? get _overlay =>
+      widget.calendarService?.provider.overlayOn(_today);
+
+  List<OverlayArc> _overlayArcs() {
+    final overlay = _overlay;
+    final service = widget.calendarService;
+    if (overlay == null || service == null) return const [];
+    return [
+      for (final e in overlay.timed)
+        OverlayArc(
+          startMin: e.startMin,
+          endMin: e.endMin,
+          track: e.track,
+          colorHex: service.colorForSource(e.sourceId),
+        ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final cur = _profile.segmentAt(_nowMin);
@@ -548,14 +584,65 @@ class _DialScreenState extends State<DialScreen> {
         color: const Color(0xFF0E1322),
         borderRadius: BorderRadius.circular(24),
       ),
-      child: DialView(
-        profile: _profile,
-        nowMin: _nowMin,
-        mode: _mode,
-        selectedSegmentId: _selectedId,
-        actuals: _actualArcs(),
-        subBlocks: _subBlocks,
-        onSegmentTapped: (id) => setState(() => _selectedId = id),
+      child: Column(
+        children: [
+          DialView(
+            profile: _profile,
+            nowMin: _nowMin,
+            mode: _mode,
+            selectedSegmentId: _selectedId,
+            actuals: _actualArcs(),
+            overlay: _overlayArcs(),
+            subBlocks: _subBlocks,
+            onSegmentTapped: (id) => setState(() => _selectedId = id),
+          ),
+          _allDayBar(),
+        ],
+      ),
+    );
+  }
+
+  /// All-day calendar events sit in the hub area per SPEC §2.5 (never on the
+  /// ring) — shown here as a compact chip row under the dial.
+  Widget _allDayBar() {
+    final overlay = _overlay;
+    final service = widget.calendarService;
+    if (overlay == null || service == null || overlay.allDay.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        alignment: WrapAlignment.center,
+        children: [
+          for (final e in overlay.allDay)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: parseHexColor(
+                  service.colorForSource(e.sourceId),
+                ).withValues(alpha: 0.22),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: parseHexColor(service.colorForSource(e.sourceId))
+                      .withValues(alpha: 0.6),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.event, size: 12),
+                  const SizedBox(width: 4),
+                  Text(
+                    e.title,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }

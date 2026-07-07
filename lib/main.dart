@@ -2,6 +2,7 @@ import 'package:day_dial_core/day_dial_core.dart';
 import 'package:flutter/material.dart';
 
 import 'agent/agent_host.dart';
+import 'calendar/calendar_service.dart';
 import 'data/repository_factory.dart';
 import 'notifications/notification_scheduler.dart';
 import 'notifications/notifier.dart';
@@ -38,6 +39,11 @@ class _DayDialAppState extends State<DayDialApp> {
     notifier: createNotifier(),
   );
 
+  // Read-only calendar overlay (SPEC §12.1). Starts with no sources — the
+  // dial stays calendar-free until the user adds an ICS/CalDAV subscription
+  // (source management UI is a follow-up); the plumbing is fully wired.
+  final CalendarService _calendar = CalendarService();
+
   @override
   void initState() {
     super.initState();
@@ -65,6 +71,7 @@ class _DayDialAppState extends State<DayDialApp> {
       home: DialScreen(
         repository: widget.repository,
         agentHost: _agent,
+        calendarService: _calendar,
         onDayChanged: _scheduler.reschedule,
       ),
     );

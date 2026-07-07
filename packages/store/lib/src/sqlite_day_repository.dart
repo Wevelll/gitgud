@@ -54,7 +54,21 @@ class SqliteDayRepository implements DayRepository {
     for (final stmt in schemaStatements) {
       _db.execute(stmt);
     }
+    // v2 -> v3: per-date override column. Guarded so it's a no-op on a fresh
+    // database (whose CREATE already includes the column) and idempotent on an
+    // existing one.
+    _addColumnIfMissing('profiles', 'for_date', 'TEXT');
     _setSetting('schema_version', '$schemaVersion');
+  }
+
+  void _addColumnIfMissing(String table, String column, String type) {
+    final cols = _db
+        .select('PRAGMA table_info($table)')
+        .map((r) => r['name'] as String)
+        .toSet();
+    if (!cols.contains(column)) {
+      _db.execute('ALTER TABLE $table ADD COLUMN $column $type');
+    }
   }
 
   void _seedIfEmpty(List<DayProfile> seed) {
@@ -91,9 +105,9 @@ class SqliteDayRepository implements DayRepository {
 
   void _insertProfile(DayProfile p) {
     _db.execute(
-      'INSERT INTO profiles (id, name, active_days_mask, is_default) '
-      'VALUES (?, ?, ?, ?)',
-      [p.id, p.name, p.activeDaysMask, p.isDefault ? 1 : 0],
+      'INSERT INTO profiles (id, name, active_days_mask, is_default, for_date) '
+      'VALUES (?, ?, ?, ?, ?)',
+      [p.id, p.name, p.activeDaysMask, p.isDefault ? 1 : 0, p.forDate],
     );
     _writeSegments(p);
   }
@@ -136,6 +150,7 @@ class SqliteDayRepository implements DayRepository {
       segments: segments,
       activeDaysMask: p['active_days_mask'] as int,
       isDefault: (p['is_default'] as int) == 1,
+      forDate: p['for_date'] as String?,
     );
   }
 
@@ -151,6 +166,85 @@ class SqliteDayRepository implements DayRepository {
   @override
   DayProfile profileForDate(CivilDate date) =>
       effectiveProfile(date, profiles());
+
+  @override
+  DayProfile templateForDate(CivilDate date) =>
+      weekdayTemplateFor(date, profiles());
+
+  @override
+  DayProfile overrideForDate(CivilDate date) {
+    final existing = _db.select(
+      'SELECT id FROM profiles WHERE for_date = ?',
+      [date.iso],
+    );
+    if (existing.isNotEmpty) {
+      return _loadProfile(existing.first['id'] as String);
+    }
+
+    final base = weekdayTemplateFor(date, profiles());
+    final idMap = <String, String>{};
+    final segs = <Segment>[];
+    for (final s in base.segments) {
+      final nid = _idFactory();
+      idMap[s.id] = nid;
+      segs.add(s.copyWith(id: nid));
+    }
+    final override = DayProfile(
+      id: _idFactory(),
+      name: base.name,
+      segments: segs,
+      forDate: date.iso,
+    );
+    _insertProfile(override);
+
+    // Inherit the template's sub-blocks under the new segment ids.
+    final plan = _loadSubBlockMap();
+    for (final entry in idMap.entries) {
+      for (final sb in plan[entry.key] ?? const <Segment>[]) {
+        _db.execute(
+          'INSERT INTO sub_segments '
+          '(id, parent_segment_id, start_min, end_min, name, color, sort_order)'
+          ' VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [
+            _idFactory(),
+            entry.value,
+            sb.startMin,
+            sb.endMin,
+            sb.name,
+            sb.colorHex,
+            0,
+          ],
+        );
+      }
+    }
+    return override;
+  }
+
+  @override
+  void resetDate(CivilDate date) {
+    final rows =
+        _db.select('SELECT id FROM profiles WHERE for_date = ?', [date.iso]);
+    for (final r in rows) {
+      final id = r['id'] as String;
+      final segIds = _db
+          .select('SELECT id FROM segments WHERE profile_id = ?', [id])
+          .map((s) => s['id'] as String)
+          .toList();
+      if (id == _activeIdOrNull) {
+        _setSetting(
+            'active_profile_id', weekdayTemplateFor(date, profiles()).id);
+      }
+      _db.execute(
+          'DELETE FROM profiles WHERE id = ?', [id]); // cascades segments
+      for (final sid in segIds) {
+        _db.execute('DELETE FROM sub_segments WHERE parent_segment_id = ?', [
+          sid,
+        ]);
+      }
+    }
+  }
+
+  String? get _activeIdOrNull => _getSetting('active_profile_id');
 
   @override
   void switchProfile(String profileId) {

@@ -289,15 +289,12 @@ class DayProfile {
   }
 }
 
-/// The effective ring for [date]: its per-date override if one exists, else the
-/// template assigned to that weekday, else the default template (or, failing
-/// that, the first profile). This is the resolution the whole app reads through
-/// once profiles carry weekday assignments and per-date overrides.
-DayProfile effectiveProfile(CivilDate date, Iterable<DayProfile> profiles) {
+/// The **template** for [date] — the weekday-assigned template, else the
+/// default (or, failing that, the first template). Ignores per-date overrides,
+/// so it answers "what would this day be *without* one-off edits" — used when
+/// editing the weekday template or resetting a day.
+DayProfile weekdayTemplateFor(CivilDate date, Iterable<DayProfile> profiles) {
   final list = profiles.toList();
-  for (final p in list) {
-    if (p.forDate == date.iso) return p;
-  }
   for (final p in list) {
     if (p.appliesToWeekday(date.weekday)) return p;
   }
@@ -308,4 +305,14 @@ DayProfile effectiveProfile(CivilDate date, Iterable<DayProfile> profiles) {
       orElse: () => list.first,
     ),
   );
+}
+
+/// The effective ring for [date]: its per-date override if one exists, else the
+/// [weekdayTemplateFor]. This is the resolution the whole app reads through once
+/// profiles carry weekday assignments and per-date overrides.
+DayProfile effectiveProfile(CivilDate date, Iterable<DayProfile> profiles) {
+  for (final p in profiles) {
+    if (p.forDate == date.iso) return p;
+  }
+  return weekdayTemplateFor(date, profiles);
 }

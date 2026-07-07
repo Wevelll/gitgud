@@ -3,7 +3,7 @@
 /// steps — for now v1 is the whole story.
 library;
 
-const int schemaVersion = 2;
+const int schemaVersion = 3;
 
 const List<String> schemaStatements = [
   '''
@@ -11,7 +11,8 @@ const List<String> schemaStatements = [
     id               TEXT PRIMARY KEY,
     name             TEXT NOT NULL,
     active_days_mask INTEGER NOT NULL DEFAULT 0,
-    is_default       INTEGER NOT NULL DEFAULT 0
+    is_default       INTEGER NOT NULL DEFAULT 0,
+    for_date         TEXT
   );
   ''',
   '''

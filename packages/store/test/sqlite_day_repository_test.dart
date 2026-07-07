@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:day_dial_core/day_dial_core.dart';
 import 'package:day_dial_store/day_dial_store.dart';
+import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 DayProfile weekday() => DayProfile.ring(
@@ -102,6 +103,70 @@ void main() {
       repo.removeProfile('weekend'); // weekday is active, so this is allowed
       expect(repo.profiles().map((p) => p.id), ['weekday']);
       repo.close();
+    });
+
+    test('a per-date override persists and survives a reopen', () {
+      final dir = Directory.systemTemp.createTempSync('daydial_ov');
+      try {
+        final path = '${dir.path}/day.db';
+        var n = 0;
+        final repo = SqliteDayRepository.open(
+          path: path,
+          seedIfEmpty: [weekday()],
+          idFactory: () => 'x${n++}',
+          clock: fixedClock,
+        );
+        final mon = CivilDate.parse('2026-07-06');
+        final o = repo.overrideForDate(mon);
+        repo.switchProfile(o.id);
+        repo.updateBlock(o.segments.first.id, name: 'Lie-in');
+        repo.close();
+
+        final reopened = SqliteDayRepository.open(path: path);
+        expect(reopened.profileForDate(mon).forDate, '2026-07-06');
+        expect(reopened.profileForDate(mon).segments.first.name, 'Lie-in');
+        // The template is untouched.
+        expect(reopened.templateForDate(mon).segments.first.name, 'Sleep');
+        reopened.close();
+      } finally {
+        dir.deleteSync(recursive: true);
+      }
+    });
+
+    test('opening a pre-v3 database migrates in the for_date column', () {
+      final dir = Directory.systemTemp.createTempSync('daydial_mig');
+      try {
+        final path = '${dir.path}/day.db';
+        // Hand-build a v2 database: profiles without for_date + a valid ring.
+        final raw = sqlite3.open(path);
+        raw.execute(
+          'CREATE TABLE profiles (id TEXT PRIMARY KEY, name TEXT NOT NULL, '
+          'active_days_mask INTEGER NOT NULL DEFAULT 0, '
+          'is_default INTEGER NOT NULL DEFAULT 0)',
+        );
+        raw.execute("INSERT INTO profiles VALUES ('p', 'Old', 0, 1)");
+        raw.execute(
+          'CREATE TABLE segments (id TEXT PRIMARY KEY, profile_id TEXT NOT NULL,'
+          ' start_min INTEGER NOT NULL, end_min INTEGER NOT NULL, '
+          'name TEXT NOT NULL, color TEXT NOT NULL, sort_order INTEGER NOT NULL)',
+        );
+        raw.execute(
+          "INSERT INTO segments VALUES ('s1','p',0,720,'Sleep','#4B4FA6',0)",
+        );
+        raw.execute(
+          "INSERT INTO segments VALUES ('s2','p',720,0,'Free','#6FA85B',1)",
+        );
+        raw.dispose();
+
+        // Opening through the repo runs the guarded ALTER migration.
+        final repo = SqliteDayRepository.open(path: path);
+        expect(repo.profiles().single.forDate, isNull); // column now present
+        final o = repo.overrideForDate(CivilDate.parse('2026-07-06'));
+        expect(o.forDate, '2026-07-06'); // overrides work on the migrated db
+        repo.close();
+      } finally {
+        dir.deleteSync(recursive: true);
+      }
     });
   });
 

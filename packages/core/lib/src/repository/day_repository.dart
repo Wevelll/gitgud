@@ -24,6 +24,20 @@ abstract interface class DayRepository {
   /// assigned to that weekday, else the default (see [effectiveProfile]).
   DayProfile profileForDate(CivilDate date);
 
+  /// The weekday **template** for [date], ignoring any per-date override — the
+  /// profile to edit when the user chooses "change the weekday template".
+  DayProfile templateForDate(CivilDate date);
+
+  /// Ensures a per-date override exists for [date] and returns it, creating one
+  /// as a deep copy of the weekday template (fresh segment ids, inheriting the
+  /// template's sub-blocks) on first call. Idempotent. Editing the override
+  /// changes only that date; [resetDate] discards it.
+  DayProfile overrideForDate(CivilDate date);
+
+  /// Discards the per-date override for [date] (if any), reverting the day to
+  /// its weekday template.
+  void resetDate(CivilDate date);
+
   /// Switches the active profile. Throws [StateError] if unknown.
   void switchProfile(String profileId);
 
@@ -233,6 +247,62 @@ class InMemoryDayRepository implements DayRepository {
   @override
   DayProfile profileForDate(CivilDate date) =>
       effectiveProfile(date, _profiles.values);
+
+  @override
+  DayProfile templateForDate(CivilDate date) =>
+      weekdayTemplateFor(date, _profiles.values);
+
+  @override
+  DayProfile overrideForDate(CivilDate date) {
+    final existing = _profiles.values.where((p) => p.forDate == date.iso);
+    if (existing.isNotEmpty) return existing.first;
+
+    final base = weekdayTemplateFor(date, _profiles.values);
+    // Deep-copy the template's segments with fresh ids so the override is
+    // fully independent (segment ids must stay globally unique).
+    final idMap = <String, String>{};
+    final segs = <Segment>[];
+    for (final s in base.segments) {
+      final nid = _idFactory();
+      idMap[s.id] = nid;
+      segs.add(s.copyWith(id: nid));
+    }
+    final override = DayProfile(
+      id: _idFactory(),
+      name: base.name,
+      segments: segs,
+      forDate: date.iso,
+    );
+    _profiles[override.id] = override;
+
+    // Inherit the template's sub-blocks, re-keyed to the new segment ids and
+    // given fresh sub-block ids.
+    final inherited = <String, List<Segment>>{};
+    for (final entry in _subBlocks.entries) {
+      final newParent = idMap[entry.key];
+      if (newParent != null) {
+        inherited[newParent] = [
+          for (final sb in entry.value) sb.copyWith(id: _idFactory()),
+        ];
+      }
+    }
+    _subBlocks.addAll(inherited);
+    return override;
+  }
+
+  @override
+  void resetDate(CivilDate date) {
+    for (final o
+        in _profiles.values.where((p) => p.forDate == date.iso).toList()) {
+      _profiles.remove(o.id);
+      for (final s in o.segments) {
+        _subBlocks.remove(s.id);
+      }
+      if (_activeId == o.id) {
+        _activeId = weekdayTemplateFor(date, _profiles.values).id;
+      }
+    }
+  }
 
   @override
   void switchProfile(String profileId) {

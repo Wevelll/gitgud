@@ -71,6 +71,8 @@ class SyncedDayRepository implements DayRepository {
   @override
   DayProfile profileForDate(CivilDate date) => _cache.profileForDate(date);
   @override
+  DayProfile templateForDate(CivilDate date) => _cache.templateForDate(date);
+  @override
   List<RecurringTask> tasks() => _cache.tasks();
   @override
   List<TaskCompletion> completions() => _cache.completions();
@@ -120,6 +122,19 @@ class SyncedDayRepository implements DayRepository {
   @override
   void setDefaultProfile(String id) {
     _cache.setDefaultProfile(id);
+    _push();
+  }
+
+  @override
+  DayProfile overrideForDate(CivilDate date) {
+    final o = _cache.overrideForDate(date);
+    _push();
+    return o;
+  }
+
+  @override
+  void resetDate(CivilDate date) {
+    _cache.resetDate(date);
     _push();
   }
 

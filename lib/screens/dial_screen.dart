@@ -9,6 +9,7 @@ import '../calendar/calendar_service.dart';
 import '../painters/dial_painter.dart';
 import '../widgets/dial_view.dart';
 import 'agent_screen.dart';
+import 'focus_screen.dart';
 import 'review_screen.dart';
 import 'stats_screen.dart';
 import 'templates_screen.dart';
@@ -435,6 +436,11 @@ class _DialScreenState extends State<DialScreen> {
   Widget build(BuildContext context) {
     final cur = _profile.segmentAt(_nowMin);
     return Scaffold(
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Focus timer',
+        onPressed: _openFocus,
+        child: const Icon(Icons.timer_outlined),
+      ),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -472,6 +478,18 @@ class _DialScreenState extends State<DialScreen> {
     Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => StatsScreen(repository: _repo)));
+  }
+
+  Future<void> _openFocus() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => FocusScreen(
+          repository: _repo,
+          onLogged: () => setState(() => _logs = _repo.logs()),
+        ),
+      ),
+    );
+    setState(() => _logs = _repo.logs());
   }
 
   void _openReview() {

@@ -254,6 +254,31 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets('editing scope: This day makes an override, Reset removes it', (
+    tester,
+  ) async {
+    final repo = testRepository();
+    await tester.pumpWidget(DayDialApp(repository: repo));
+    await tester.pump();
+
+    final today = CivilDate.fromDateTime(DateTime.now());
+    expect(repo.profileForDate(today).forDate, isNull); // no override yet
+
+    await tester.ensureVisible(find.text('This day'));
+    await tester.pump();
+    await tester.tap(find.text('This day'));
+    await tester.pump();
+    expect(repo.profileForDate(today).forDate, isNotNull); // override created
+
+    await tester.ensureVisible(find.text('Reset'));
+    await tester.pump();
+    await tester.tap(find.text('Reset'));
+    await tester.pump();
+    expect(repo.profileForDate(today).forDate, isNull); // back to the template
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('the templates button opens the templates screen', (
     tester,
   ) async {

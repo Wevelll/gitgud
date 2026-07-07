@@ -415,6 +415,8 @@ class _DialScreenState extends State<DialScreen> {
                   const SizedBox(height: 16),
                   _liveControls(),
                   const SizedBox(height: 12),
+                  _scopeBar(),
+                  const SizedBox(height: 12),
                   _selectedEditor(),
                   const SizedBox(height: 12),
                   _tray(),
@@ -452,6 +454,32 @@ class _DialScreenState extends State<DialScreen> {
     );
     // The active template (and thus the ring) may have changed.
     setState(_loadFromRepo);
+    widget.onDayChanged?.call();
+  }
+
+  /// Chooses what today's edits target: a per-date override ("this day") or the
+  /// weekday template. Picking "this day" materializes an override (a deep copy
+  /// that inherits the template's detail); the two stay in sync only until you
+  /// edit the override.
+  void _setEditScope({required bool template}) {
+    if (template) {
+      _repo.switchProfile(_repo.templateForDate(_today).id);
+    } else {
+      _repo.switchProfile(_repo.overrideForDate(_today).id);
+    }
+    setState(() {
+      _selectedId = null;
+      _loadFromRepo();
+    });
+    widget.onDayChanged?.call();
+  }
+
+  void _resetToTemplate() {
+    _repo.resetDate(_today);
+    setState(() {
+      _selectedId = null;
+      _loadFromRepo();
+    });
     widget.onDayChanged?.call();
   }
 
@@ -652,6 +680,45 @@ class _DialScreenState extends State<DialScreen> {
             ),
           ],
         ),
+      ],
+    );
+  }
+
+  /// Chooses whether edits change just today (a per-date override) or the
+  /// weekday template, with a reset back to the template when an override
+  /// exists (SPEC §2.4 — edit a particular day vs the recurring layout).
+  Widget _scopeBar() {
+    final editingTemplate = _profile.forDate == null;
+    final hasOverride = _repo.profileForDate(_today).forDate != null;
+    return Row(
+      children: [
+        Expanded(
+          child: SegmentedButton<bool>(
+            segments: const [
+              ButtonSegment(
+                value: false,
+                label: Text('This day'),
+                icon: Icon(Icons.today, size: 16),
+              ),
+              ButtonSegment(
+                value: true,
+                label: Text('Weekday'),
+                icon: Icon(Icons.event_repeat, size: 16),
+              ),
+            ],
+            selected: {editingTemplate},
+            showSelectedIcon: false,
+            onSelectionChanged: (s) => _setEditScope(template: s.first),
+          ),
+        ),
+        if (hasOverride) ...[
+          const SizedBox(width: 8),
+          TextButton.icon(
+            onPressed: _resetToTemplate,
+            icon: const Icon(Icons.restart_alt, size: 18),
+            label: const Text('Reset'),
+          ),
+        ],
       ],
     );
   }

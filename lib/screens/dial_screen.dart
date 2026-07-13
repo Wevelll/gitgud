@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:math' as math;
 
 import 'package:day_dial_core/day_dial_core.dart';
 import 'package:flutter/material.dart';
 
 import '../agent/agent_host.dart';
 import '../calendar/calendar_service.dart';
+import '../painters/dial_geometry.dart';
 import '../painters/dial_painter.dart';
 import '../widgets/dial_view.dart';
 import 'agent_screen.dart';
@@ -15,10 +17,12 @@ import 'review_screen.dart';
 import 'stats_screen.dart';
 import 'templates_screen.dart';
 
-/// The main dial screen: the dial plus its controls, a resize editor, and the
-/// must-do tray. State is minimal `setState`; all reads/writes go through a
-/// [DayRepository] (CLAUDE.md: the UI is wiring; logic + persistence live
-/// behind the repository).
+/// The All-Dial shell (SPEC §2, design exploration D): the dial *is* the
+/// interface. The hub is the tracking control, a tapped wedge opens a radial
+/// popover editor, must-do tokens and habits float around the ring, and the
+/// four corners are the entire navigation surface. All reads/writes go through a
+/// [DayRepository] (CLAUDE.md: the UI is wiring; logic + persistence live behind
+/// the repository).
 class DialScreen extends StatefulWidget {
   const DialScreen({
     super.key,
@@ -55,7 +59,6 @@ class _DialScreenState extends State<DialScreen> {
   late List<TimeLog> _logs;
 
   DialMode _mode = DialMode.compass;
-  bool _live = true;
   int _nowMin = _minuteOfNow();
   String? _selectedId;
 
@@ -107,7 +110,6 @@ class _DialScreenState extends State<DialScreen> {
     _timer?.cancel();
     // Tick every second while tracking (live elapsed), else once a minute-ish.
     final period = Duration(seconds: _tracking ? 1 : 10);
-    if (!_live && !_tracking) return;
     _timer = Timer.periodic(period, (_) {
       if (mounted) setState(() => _nowMin = _minuteOfNow());
     });
@@ -121,15 +123,30 @@ class _DialScreenState extends State<DialScreen> {
 
   int _indexOf(String id) => _profile.segments.indexWhere((s) => s.id == id);
 
-  /// Resizes the selected wedge by moving its end boundary (persisted). A move
-  /// that would breach the 15-min minimum or cross a neighbor is rejected by
-  /// core and left as a no-op.
-  void _resizeSelected(int delta) {
+  /// Moves the selected wedge's **end** boundary (persisted). A move that would
+  /// breach the 15-min minimum or cross a neighbor is rejected by core and left
+  /// as a no-op.
+  void _resizeSelectedEnd(int delta) {
     final id = _selectedId;
     if (id == null) return;
     final seg = _profile.segments[_indexOf(id)];
     try {
       _repo.updateBlock(id, endMin: seg.endMin + delta);
+    } on InvalidProfileException {
+      return;
+    }
+    setState(() => _profile = _repo.activeProfile());
+    widget.onDayChanged?.call();
+  }
+
+  /// Moves the selected wedge's **start** boundary (the edge shared with the
+  /// previous block). Same no-op-on-illegal contract as [_resizeSelectedEnd].
+  void _resizeSelectedStart(int delta) {
+    final id = _selectedId;
+    if (id == null) return;
+    final seg = _profile.segments[_indexOf(id)];
+    try {
+      _repo.updateBlock(id, startMin: seg.startMin + delta);
     } on InvalidProfileException {
       return;
     }
@@ -340,6 +357,14 @@ class _DialScreenState extends State<DialScreen> {
 
   // ---- tracking ----
 
+  void _toggleTracking() {
+    if (_tracking) {
+      _stopTracking();
+    } else {
+      _startTracking();
+    }
+  }
+
   void _startTracking() {
     final seg = _profile.segmentAt(_minuteOfNow());
     setState(() {
@@ -434,45 +459,138 @@ class _DialScreenState extends State<DialScreen> {
     ];
   }
 
+  /// The hub's live-tracking descriptor, or null when idle.
+  DialTracking? get _dialTracking {
+    if (!_tracking) return null;
+    return DialTracking(
+      category: _trackCategory!,
+      colorHex: _colorForCategory(_trackCategory!),
+      elapsedLabel: _mmss(_elapsed),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final cur = _profile.segmentAt(_nowMin);
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'Focus timer',
-        onPressed: _openFocus,
-        child: const Icon(Icons.timer_outlined),
-      ),
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _header(cur),
-                  const SizedBox(height: 16),
-                  _dialCard(),
-                  const SizedBox(height: 12),
-                  _trackingCard(cur),
-                  const SizedBox(height: 16),
-                  _liveControls(),
-                  const SizedBox(height: 12),
-                  _scopeBar(),
-                  const SizedBox(height: 12),
-                  _selectedEditor(),
-                  const SizedBox(height: 12),
-                  _tray(),
-                  const SizedBox(height: 12),
-                  _habitsSection(),
-                ],
-              ),
-            ),
-          ),
+        child: LayoutBuilder(
+          builder: (context, constraints) =>
+              _shell(Size(constraints.maxWidth, constraints.maxHeight)),
         ),
       ),
+    );
+  }
+
+  /// The radial shell: a large centered dial with everything else living in the
+  /// margins and corners around it (the All-Dial law — the corners are the
+  /// chrome budget).
+  Widget _shell(Size box) {
+    final double side = math.min(box.shortestSide * 0.82, 560.0);
+    final dialRect = Rect.fromLTWH(
+      (box.width - side) / 2,
+      (box.height - side) / 2,
+      side,
+      side,
+    );
+    final sideInset = math.min(120.0, box.width * 0.22);
+
+    return Stack(
+      children: [
+        // The instrument.
+        Positioned.fromRect(
+          rect: dialRect,
+          child: DialView(
+            profile: _profile,
+            nowMin: _nowMin,
+            mode: _mode,
+            selectedSegmentId: _selectedId,
+            actuals: _actualArcs(),
+            overlay: _overlayArcs(),
+            subBlocks: _subBlocks,
+            tracking: _dialTracking,
+            onSegmentTapped: (id) => setState(() => _selectedId = id),
+            onHubTapped: _toggleTracking,
+            onHubLongPressed: _openFocus,
+            onBackgroundTapped: () {
+              if (_selectedId != null) setState(() => _selectedId = null);
+            },
+          ),
+        ),
+
+        // All-day calendar events sit in the hub area, never on the ring.
+        Positioned(
+          top: 6,
+          left: 12,
+          right: 12,
+          child: Center(child: _allDayBanner()),
+        ),
+
+        // Must-do tokens orbit above; habits perch below.
+        Positioned(
+          top: 40,
+          left: sideInset,
+          right: sideInset,
+          child: Center(child: _trayChips()),
+        ),
+        Positioned(
+          bottom: 48,
+          left: sideInset,
+          right: sideInset,
+          child: Center(child: _habitPills()),
+        ),
+
+        // Mode toggle: unobtrusive, bottom-center.
+        Positioned(
+          bottom: 8,
+          left: 0,
+          right: 0,
+          child: Center(child: _modeToggle()),
+        ),
+
+        // Four corner doors — the entire navigation surface.
+        Positioned(
+          top: 10,
+          left: 10,
+          child: _door(
+            label: 'Plans',
+            sub: 'templates · scope',
+            onTap: _openPlansSheet,
+          ),
+        ),
+        Positioned(
+          top: 10,
+          right: 10,
+          child: _door(
+            label: 'Insight',
+            sub: 'stats · review',
+            onTap: _openInsightSheet,
+            alignEnd: true,
+          ),
+        ),
+        Positioned(
+          bottom: 10,
+          left: 10,
+          child: _door(
+            label: 'Setup',
+            sub: 'calendars · export',
+            onTap: _openSetupSheet,
+          ),
+        ),
+        Positioned(
+          bottom: 10,
+          right: 10,
+          child: _door(
+            label: 'Agent',
+            sub: 'MCP · stdio',
+            onTap: _openAgent,
+            alignEnd: true,
+            statusDot: true,
+          ),
+        ),
+
+        // The radial popover editor for the selected wedge.
+        _wedgePopover(dialRect, box),
+      ],
     );
   }
 
@@ -565,414 +683,456 @@ class _DialScreenState extends State<DialScreen> {
     widget.onDayChanged?.call();
   }
 
-  Widget _header(Segment cur) {
-    // Two rows so the growing set of actions never crowds the title/toggle on a
-    // narrow header: title + mode toggle on top, action icons beneath.
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _profile.name.toUpperCase(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11,
-                      letterSpacing: 2,
-                      color: Colors.white.withValues(alpha: 0.45),
-                    ),
-                  ),
-                  Text(
-                    formatMinuteOfDay(_nowMin),
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontFeatures: [FontFeature.tabularFigures()],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            SegmentedButton<DialMode>(
-              style: const ButtonStyle(visualDensity: VisualDensity.compact),
-              segments: const [
-                ButtonSegment(value: DialMode.compass, label: Text('Compass')),
-                ButtonSegment(value: DialMode.clock, label: Text('Clock')),
-              ],
-              selected: {_mode},
-              showSelectedIcon: false,
-              onSelectionChanged: (s) => setState(() => _mode = s.first),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            IconButton(
-              tooltip: 'Day templates',
-              visualDensity: VisualDensity.compact,
-              onPressed: _openTemplates,
-              icon: const Icon(Icons.calendar_month_outlined),
-            ),
-            IconButton(
-              tooltip: 'Plan vs actual',
-              visualDensity: VisualDensity.compact,
-              onPressed: _openStats,
-              icon: const Icon(Icons.insights),
-            ),
-            IconButton(
-              tooltip: 'Review',
-              visualDensity: VisualDensity.compact,
-              onPressed: _openReview,
-              icon: const Icon(Icons.summarize_outlined),
-            ),
-            if (widget.calendarService != null)
-              IconButton(
-                tooltip: 'Calendars',
-                visualDensity: VisualDensity.compact,
-                onPressed: _openCalendars,
-                icon: const Icon(Icons.event_outlined),
-              ),
-            IconButton(
-              tooltip: 'Agent',
-              visualDensity: VisualDensity.compact,
-              onPressed: _openAgent,
-              icon: const Icon(Icons.smart_toy_outlined),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _dialCard() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0E1322),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(
-        children: [
-          DialView(
-            profile: _profile,
-            nowMin: _nowMin,
-            mode: _mode,
-            selectedSegmentId: _selectedId,
-            actuals: _actualArcs(),
-            overlay: _overlayArcs(),
-            subBlocks: _subBlocks,
-            onSegmentTapped: (id) => setState(() => _selectedId = id),
-          ),
-          _allDayBar(),
-        ],
-      ),
-    );
-  }
+  // ---- radial shell pieces --------------------------------------------------
 
   /// All-day calendar events sit in the hub area per SPEC §2.5 (never on the
-  /// ring) — shown here as a compact chip row under the dial.
-  Widget _allDayBar() {
+  /// ring) — a compact chip row floated at the top of the dial.
+  Widget _allDayBanner() {
     final overlay = _overlay;
     final service = widget.calendarService;
     if (overlay == null || service == null || overlay.allDay.isEmpty) {
       return const SizedBox.shrink();
     }
-    return Padding(
-      padding: const EdgeInsets.only(top: 10),
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 6,
-        alignment: WrapAlignment.center,
-        children: [
-          for (final e in overlay.allDay)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: parseHexColor(
-                  service.colorForSource(e.sourceId),
-                ).withValues(alpha: 0.22),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: parseHexColor(service.colorForSource(e.sourceId))
-                      .withValues(alpha: 0.6),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.event, size: 12),
-                  const SizedBox(width: 4),
-                  Text(
-                    e.title,
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _trackingCard(Segment cur) {
-    final tracking = _tracking;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0E1322),
-        borderRadius: BorderRadius.circular(12),
-        border: tracking
-            ? Border.all(
-                color: parseHexColor(_colorForCategory(_trackCategory!)),
-              )
-            : null,
-      ),
-      child: Row(
-        children: [
-          if (tracking) ...[
-            Icon(
-              Icons.fiber_manual_record,
-              size: 12,
-              color: parseHexColor(_colorForCategory(_trackCategory!)),
-            ),
-            const SizedBox(width: 8),
-          ],
-          Expanded(
-            child: tracking
-                ? Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          'Tracking ${_trackCategory!}',
-                          overflow: TextOverflow.ellipsis,
-                          softWrap: false,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _mmss(_elapsed),
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.6),
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
-                      ),
-                    ],
-                  )
-                : Text(
-                    'Track time for “${cur.name}”',
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.7),
-                    ),
-                  ),
-          ),
-          const SizedBox(width: 8),
-          if (tracking)
-            FilledButton(onPressed: _stopTracking, child: const Text('Stop'))
-          else
-            FilledButton.tonalIcon(
-              onPressed: _startTracking,
-              icon: const Icon(Icons.play_arrow, size: 18),
-              label: const Text('Start'),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _liveControls() {
-    return Column(
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      alignment: WrapAlignment.center,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: FilledButton.tonal(
-                onPressed: () => setState(() {
-                  _live = !_live;
-                  if (_live) _nowMin = _minuteOfNow();
-                  _startClock();
-                }),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (_live) ...[
-                      const Icon(
-                        Icons.circle,
-                        size: 10,
-                        color: Color(0xFF6FA85B),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                    const Text('Live'),
-                  ],
-                ),
+        for (final e in overlay.allDay)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: parseHexColor(
+                service.colorForSource(e.sourceId),
+              ).withValues(alpha: 0.22),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: parseHexColor(service.colorForSource(e.sourceId))
+                    .withValues(alpha: 0.6),
               ),
             ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            const Text('Scrub'),
-            Expanded(
-              child: Slider(
-                value: _nowMin.toDouble(),
-                max: 1439,
-                onChanged: (v) => setState(() {
-                  _live = false;
-                  _timer?.cancel();
-                  _nowMin = v.round();
-                }),
-              ),
-            ),
-            Text(
-              formatMinuteOfDay(_nowMin),
-              style: const TextStyle(
-                fontFeatures: [FontFeature.tabularFigures()],
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  /// Chooses whether edits change just today (a per-date override) or the
-  /// weekday template, with a reset back to the template when an override
-  /// exists (SPEC §2.4 — edit a particular day vs the recurring layout).
-  Widget _scopeBar() {
-    final editingTemplate = _profile.forDate == null;
-    final hasOverride = _repo.profileForDate(_today).forDate != null;
-    return Row(
-      children: [
-        Expanded(
-          child: SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment(
-                value: false,
-                label: Text('This day'),
-                icon: Icon(Icons.today, size: 16),
-              ),
-              ButtonSegment(
-                value: true,
-                label: Text('Weekday'),
-                icon: Icon(Icons.event_repeat, size: 16),
-              ),
-            ],
-            selected: {editingTemplate},
-            showSelectedIcon: false,
-            onSelectionChanged: (s) => _setEditScope(template: s.first),
-          ),
-        ),
-        if (hasOverride) ...[
-          const SizedBox(width: 8),
-          TextButton.icon(
-            onPressed: _resetToTemplate,
-            icon: const Icon(Icons.restart_alt, size: 18),
-            label: const Text('Reset'),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _selectedEditor() {
-    final id = _selectedId;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0E1322),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: id == null
-          ? Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: Text(
-                    'Tap a wedge to edit it',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.45),
-                    ),
-                  ),
+                const Icon(Icons.event, size: 12),
+                const SizedBox(width: 4),
+                Text(e.title, style: const TextStyle(fontSize: 12)),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  static ShapeBorder _pillShape([Color? border]) => RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: border ?? Colors.white.withValues(alpha: 0.12)),
+      );
+
+  Widget _trayChips() {
+    final tray = trayFor(_today, _tasks, _completions);
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      alignment: WrapAlignment.center,
+      children: [
+        for (final item in tray) _chip(item.task, item.doneToday),
+        _addPill('Task', _addTaskDialog, keyOverride: const Key('add-task')),
+      ],
+    );
+  }
+
+  /// A must-do token: tap toggles done, long-press opens its actions. (The
+  /// drag-onto-a-wedge placement from the prototype is a follow-up milestone.)
+  Widget _chip(RecurringTask task, bool done) {
+    final color = parseHexColor(task.colorHex);
+    return GestureDetector(
+      onLongPress: () => _taskActions(task),
+      child: Material(
+        color: const Color(0xF2141A2B),
+        shape: _pillShape(),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => _toggleTask(task.id, done),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  done ? Icons.check_box : Icons.check_box_outline_blank,
+                  size: 15,
+                  color: done ? color : Colors.white70,
                 ),
-                TextButton.icon(
-                  onPressed: _addBlockDialog,
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Add block'),
+                const SizedBox(width: 7),
+                Text(
+                  task.label,
+                  style: TextStyle(
+                    decoration: done ? TextDecoration.lineThrough : null,
+                    color:
+                        done ? Colors.white.withValues(alpha: 0.4) : Colors.white,
+                    fontSize: 12.5,
+                  ),
                 ),
               ],
-            )
-          : Builder(
-              builder: (_) {
-                final seg = _profile.segments[_indexOf(id)];
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                seg.name,
-                                style: TextStyle(
-                                  color: parseHexColor(seg.colorHex),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              Text(
-                                '${formatMinuteOfDay(seg.startMin)}–'
-                                '${formatMinuteOfDay(seg.endMin)} · '
-                                '${formatDuration(seg.durationMin)}',
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.45),
-                                  fontFeatures: const [
-                                    FontFeature.tabularFigures(),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: 'Shorten',
-                          onPressed: () => _resizeSelected(-15),
-                          icon: const Icon(Icons.remove_circle_outline),
-                        ),
-                        IconButton(
-                          tooltip: 'Lengthen',
-                          onPressed: () => _resizeSelected(15),
-                          icon: const Icon(Icons.add_circle_outline),
-                        ),
-                        IconButton(
-                          tooltip: 'Rename / recolor',
-                          onPressed: () => _editBlockDialog(seg),
-                          icon: const Icon(Icons.edit_outlined),
-                        ),
-                        IconButton(
-                          tooltip: 'Delete',
-                          onPressed: _deleteSelected,
-                          icon: const Icon(Icons.delete_outline),
-                          color: const Color(0xFFB5624F),
-                        ),
-                      ],
-                    ),
-                    _subBlockSection(seg),
-                  ],
-                );
-              },
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _addPill(String label, VoidCallback onTap, {Key? keyOverride}) {
+    return Material(
+      key: keyOverride,
+      color: Colors.transparent,
+      shape: _pillShape(Colors.white24),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.add, size: 15, color: Colors.white54),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: const TextStyle(fontSize: 12, color: Colors.white54),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _habitPills() {
+    final counts = habitCountsFor(_today, _habits, _habitEvents);
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      alignment: WrapAlignment.center,
+      children: [
+        for (final c in counts) _habitPill(c),
+        _addPill('Habit', _addHabitDialog, keyOverride: const Key('add-habit')),
+      ],
+    );
+  }
+
+  /// A habit counter: tap +1, long-press −1.
+  Widget _habitPill(HabitDayCount c) {
+    final color = parseHexColor(c.habit.colorHex);
+    final bad = c.habit.polarity == HabitPolarity.bad;
+    final countText = c.target != null ? '${c.count} / ${c.target}' : '${c.count}';
+    final reachedColor =
+        bad ? const Color(0xFFB5624F) : const Color(0xFF6FA85B);
+    return GestureDetector(
+      onLongPress: c.count > 0 ? () => _bumpHabit(c.habit.id, -1) : null,
+      child: Material(
+        color: const Color(0xFF0E1322),
+        shape: _pillShape(),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => _bumpHabit(c.habit.id, 1),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 7),
+                Text(c.habit.label, style: const TextStyle(fontSize: 12)),
+                const SizedBox(width: 7),
+                Text(
+                  countText,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                    color: c.targetReached ? reachedColor : Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _modeToggle() {
+    return SegmentedButton<DialMode>(
+      style: const ButtonStyle(visualDensity: VisualDensity.compact),
+      segments: const [
+        ButtonSegment(value: DialMode.compass, label: Text('Compass')),
+        ButtonSegment(value: DialMode.clock, label: Text('Clock')),
+      ],
+      selected: {_mode},
+      showSelectedIcon: false,
+      onSelectionChanged: (s) => setState(() => _mode = s.first),
+    );
+  }
+
+  Widget _door({
+    required String label,
+    required String sub,
+    required VoidCallback onTap,
+    bool alignEnd = false,
+    bool statusDot = false,
+  }) {
+    final dot = Container(
+      width: 6,
+      height: 6,
+      decoration: const BoxDecoration(
+        color: Color(0xFF6FA85B),
+        shape: BoxShape.circle,
+      ),
+    );
+    return Material(
+      color: const Color(0xCC0E1322),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment:
+                alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (statusDot && !alignEnd) ...[dot, const SizedBox(width: 6)],
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                  if (statusDot && alignEnd) ...[const SizedBox(width: 6), dot],
+                ],
+              ),
+              Text(
+                sub,
+                style: TextStyle(
+                  fontSize: 9,
+                  color: Colors.white.withValues(alpha: 0.4),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _wedgePopover(Rect dialRect, Size box) {
+    // A *positioned* placeholder when hidden: every direct child of the shell's
+    // Stack is positioned, so the Stack expands to fill regardless of the parent
+    // constraints (a non-positioned 0×0 child could otherwise collapse it).
+    const hidden = Positioned(left: 0, top: 0, child: SizedBox.shrink());
+    final id = _selectedId;
+    if (id == null) return hidden;
+    final idx = _indexOf(id);
+    if (idx < 0) return hidden;
+    final seg = _profile.segments[idx];
+
+    final dialSize = Size(dialRect.width, dialRect.height);
+    final rot = DialGeometry.rotationDeg(
+      compass: _mode == DialMode.compass,
+      nowMin: _nowMin,
+    );
+    final mid = DialGeometry.wedgeMidAngleDeg(
+      startMin: seg.startMin,
+      durationMin: seg.durationMin,
+      rotationDeg: rot,
+    );
+    final a = DialGeometry.pointAt(dialSize, DialGeometry.ro + 26, mid);
+    final anchor = Offset(dialRect.left + a.dx, dialRect.top + a.dy);
+
+    const popW = 240.0;
+    final maxH = math.min(360.0, box.height - 16);
+    final left = (anchor.dx - popW / 2)
+        .clamp(8.0, math.max(8.0, box.width - popW - 8))
+        .toDouble();
+    final top = (anchor.dy - maxH / 2)
+        .clamp(8.0, math.max(8.0, box.height - maxH - 8))
+        .toDouble();
+
+    return Positioned(
+      left: left,
+      top: top,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: popW, maxHeight: maxH),
+        child: Material(
+          color: const Color(0xFF141A2B),
+          elevation: 10,
+          borderRadius: BorderRadius.circular(14),
+          clipBehavior: Clip.antiAlias,
+          child: _popCard(seg),
+        ),
+      ),
+    );
+  }
+
+  Widget _popCard(Segment seg) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: parseHexColor(seg.colorHex),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => _editBlockDialog(seg),
+                  child: Text(
+                    seg.name,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: parseHexColor(seg.colorHex),
+                    ),
+                  ),
+                ),
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                tooltip: 'Close',
+                onPressed: () => setState(() => _selectedId = null),
+                icon: const Icon(Icons.close, size: 18),
+              ),
+            ],
+          ),
+          Text(
+            '${formatMinuteOfDay(seg.startMin)}–${formatMinuteOfDay(seg.endMin)}'
+            ' · ${formatDuration(seg.durationMin)}',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.45),
+              fontSize: 12,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+          const SizedBox(height: 8),
+          _stepperRow(
+            'START',
+            formatMinuteOfDay(seg.startMin),
+            onMinus: () => _resizeSelectedStart(-15),
+            onPlus: () => _resizeSelectedStart(15),
+            minusTip: 'Start earlier',
+            plusTip: 'Start later',
+          ),
+          _stepperRow(
+            'END',
+            formatMinuteOfDay(seg.endMin),
+            onMinus: () => _resizeSelectedEnd(-15),
+            onPlus: () => _resizeSelectedEnd(15),
+            minusTip: 'End earlier',
+            plusTip: 'End later',
+          ),
+          _subBlockSection(seg),
+          const SizedBox(height: 8),
+          _ColorSwatches(
+            selected: seg.colorHex,
+            onChanged: (c) {
+              _repo.updateBlock(seg.id, colorHex: c);
+              setState(() => _profile = _repo.activeProfile());
+              widget.onDayChanged?.call();
+            },
+          ),
+          const Divider(height: 18),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Tap the name to rename',
+                  style: TextStyle(fontSize: 11, color: Colors.white38),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _deleteSelected,
+                icon: const Icon(Icons.delete_outline, size: 18),
+                label: const Text('Delete'),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFFB5624F),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stepperRow(
+    String label,
+    String value, {
+    required VoidCallback onMinus,
+    required VoidCallback onPlus,
+    required String minusTip,
+    required String plusTip,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 44,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 9,
+                letterSpacing: 1,
+                color: Colors.white54,
+              ),
+            ),
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            tooltip: minusTip,
+            onPressed: onMinus,
+            icon: const Icon(Icons.remove_circle_outline, size: 20),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFeatures: [FontFeature.tabularFigures()],
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            tooltip: plusTip,
+            onPressed: onPlus,
+            icon: const Icon(Icons.add_circle_outline, size: 20),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1059,197 +1219,196 @@ class _DialScreenState extends State<DialScreen> {
     );
   }
 
-  Widget _habitsSection() {
-    final counts = habitCountsFor(_today, _habits, _habitEvents);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0E1322),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'HABITS · TAP TO COUNT',
-                style: TextStyle(
-                  fontSize: 11,
-                  letterSpacing: 2,
-                  color: Colors.white.withValues(alpha: 0.45),
-                ),
-              ),
-              InkWell(
-                key: const Key('add-habit'),
-                onTap: _addHabitDialog,
-                child: const Padding(
-                  padding: EdgeInsets.all(4),
-                  child: Icon(Icons.add, size: 18),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          if (counts.isEmpty)
-            Text(
-              'No habits yet — add one with +',
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.45)),
-            ),
-          for (final c in counts) _habitRow(c),
-        ],
-      ),
-    );
-  }
+  // ---- corner-door sheets ---------------------------------------------------
 
-  Widget _habitRow(HabitDayCount c) {
-    final color = parseHexColor(c.habit.colorHex);
-    final bad = c.habit.polarity == HabitPolarity.bad;
-    final countText = c.target != null
-        ? '${c.count} / ${c.target}'
-        : '${c.count}';
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 8),
-          Expanded(child: Text(c.habit.label)),
-          Text(
-            countText,
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontFeatures: const [FontFeature.tabularFigures()],
-              color: c.targetReached
-                  ? (bad ? const Color(0xFFB5624F) : const Color(0xFF6FA85B))
-                  : Colors.white,
-            ),
-          ),
-          const SizedBox(width: 4),
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            onPressed: c.count > 0 ? () => _bumpHabit(c.habit.id, -1) : null,
-            icon: const Icon(Icons.remove_circle_outline, size: 20),
-          ),
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            onPressed: () => _bumpHabit(c.habit.id, 1),
-            icon: Icon(Icons.add_circle, size: 22, color: color),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _tray() {
-    final tray = trayFor(_today, _tasks, _completions);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0E1322),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'MUST-DO TODAY · NO FIXED TIME',
-                style: TextStyle(
-                  fontSize: 11,
-                  letterSpacing: 2,
-                  color: Colors.white.withValues(alpha: 0.45),
-                ),
-              ),
-              InkWell(
-                key: const Key('add-task'),
-                onTap: _addTaskDialog,
-                child: const Padding(
-                  padding: EdgeInsets.all(4),
-                  child: Icon(Icons.add, size: 18),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (tray.isEmpty)
+  Widget _sheetHeader(String title, String sub) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Text(
-              'Nothing due today',
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.45)),
+              title,
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
             ),
-          for (final item in tray)
-            Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    onTap: () => _toggleTask(item.task.id, item.doneToday),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        children: [
-                          Icon(
-                            item.doneToday
-                                ? Icons.check_box
-                                : Icons.check_box_outline_blank,
-                            size: 20,
-                            color: parseHexColor(item.task.colorHex),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              item.task.label,
-                              style: TextStyle(
-                                decoration: item.doneToday
-                                    ? TextDecoration.lineThrough
-                                    : null,
-                                color: item.doneToday
-                                    ? Colors.white.withValues(alpha: 0.4)
-                                    : Colors.white,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                PopupMenuButton<String>(
-                  tooltip: 'Task actions',
-                  icon: Icon(
-                    Icons.more_vert,
-                    size: 18,
-                    color: Colors.white.withValues(alpha: 0.5),
-                  ),
-                  onSelected: (v) {
-                    switch (v) {
-                      case 'edit':
-                        _editTaskDialog(item.task);
-                      case 'archive':
-                        _archiveTask(item.task.id);
-                      case 'delete':
-                        _deleteTask(item.task.id);
-                    }
+            Text(
+              sub,
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.white.withValues(alpha: 0.4),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Future<void> _openPlansSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF0E1322),
+      builder: (ctx) {
+        final editingTemplate = _profile.forDate == null;
+        final hasOverride = _repo.profileForDate(_today).forDate != null;
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _sheetHeader('Plans', 'templates · edit scope'),
+              ListTile(
+                leading: const Icon(Icons.calendar_month_outlined),
+                title: const Text('Day templates'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _openTemplates();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.today),
+                title: const Text('Edit this day'),
+                trailing: editingTemplate ? null : const Icon(Icons.check, size: 18),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _setEditScope(template: false);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.event_repeat),
+                title: const Text('Edit weekday template'),
+                trailing: editingTemplate ? const Icon(Icons.check, size: 18) : null,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _setEditScope(template: true);
+                },
+              ),
+              if (hasOverride)
+                ListTile(
+                  leading: const Icon(Icons.restart_alt),
+                  title: const Text('Reset this day to template'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _resetToTemplate();
                   },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Edit…')),
-                    PopupMenuItem(value: 'archive', child: Text('Archive')),
-                    PopupMenuItem(value: 'delete', child: Text('Delete')),
-                  ],
                 ),
-              ],
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openInsightSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF0E1322),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _sheetHeader('Insight', 'plan vs actual · review'),
+            ListTile(
+              leading: const Icon(Icons.insights),
+              title: const Text('Plan vs actual'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _openStats();
+              },
             ),
-        ],
+            ListTile(
+              leading: const Icon(Icons.summarize_outlined),
+              title: const Text('Review'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _openReview();
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _openSetupSheet() async {
+    final hasCalendar = widget.calendarService != null;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF0E1322),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _sheetHeader('Setup', 'calendars · export'),
+            if (hasCalendar)
+              ListTile(
+                leading: const Icon(Icons.event_outlined),
+                title: const Text('Calendars'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _openCalendars();
+                },
+              )
+            else
+              const ListTile(
+                leading: Icon(Icons.event_busy),
+                title: Text('Calendars'),
+                subtitle: Text('Not available in this build'),
+                enabled: false,
+              ),
+            ListTile(
+              leading: const Icon(Icons.ios_share),
+              title: const Text('Export'),
+              subtitle: const Text('From the Review screen'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _openReview();
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _taskActions(RecurringTask task) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: const Color(0xFF0E1322),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _sheetHeader(task.label, 'must-do today'),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Edit…'),
+              onTap: () => Navigator.pop(ctx, 'edit'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.archive_outlined),
+              title: const Text('Archive'),
+              onTap: () => Navigator.pop(ctx, 'archive'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline),
+              title: const Text('Delete'),
+              onTap: () => Navigator.pop(ctx, 'delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    switch (action) {
+      case 'edit':
+        await _editTaskDialog(task);
+      case 'archive':
+        _archiveTask(task.id);
+      case 'delete':
+        _deleteTask(task.id);
+    }
   }
 }
 

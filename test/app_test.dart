@@ -8,6 +8,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'support.dart';
 
 void main() {
+  // A point on the wedge ring: the All-Dial hub covers the center (radius ~82
+  // dial-units), so a wedge tap must land past it. At the test window's dial
+  // size this offset is comfortably out on the ring.
+  const onRing = Offset(160, 0);
+
   testWidgets('app boots and shows the dial with mode toggle', (tester) async {
     await tester.pumpWidget(DayDialApp(repository: testRepository()));
     await tester
@@ -16,7 +21,7 @@ void main() {
     expect(find.byType(DialView), findsOneWidget);
     expect(find.text('Compass'), findsOneWidget);
     expect(find.text('Clock'), findsOneWidget);
-    expect(find.text('Take meds'), findsOneWidget); // tray from repository
+    expect(find.text('Take meds'), findsOneWidget); // tray token from repository
 
     // Switch to clock mode.
     await tester.tap(find.text('Clock'));
@@ -26,7 +31,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('checking a tray task persists to the repository', (
+  testWidgets('checking a tray token persists to the repository', (
     tester,
   ) async {
     final repo = testRepository();
@@ -34,25 +39,19 @@ void main() {
     await tester.pump();
 
     expect(repo.completions(), isEmpty);
-    await tester.ensureVisible(
-      find.text('Take meds'),
-    ); // tray is below the fold
-    await tester.pump();
-    await tester.tap(find.text('Take meds'));
+    await tester.tap(find.text('Take meds')); // the floating token
     await tester.pump();
     expect(repo.completions(), hasLength(1)); // written through
 
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('add-task dialog creates a persisted task', (tester) async {
+  testWidgets('add-task pill creates a persisted task', (tester) async {
     final repo = testRepository();
     await tester.pumpWidget(DayDialApp(repository: repo));
     await tester.pump();
     final before = repo.tasks().length;
 
-    await tester.ensureVisible(find.byKey(const Key('add-task')));
-    await tester.pump();
     await tester.tap(find.byKey(const Key('add-task')));
     await tester.pump(const Duration(milliseconds: 300)); // dialog opens
 
@@ -66,23 +65,54 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('selecting a wedge then deleting removes it', (tester) async {
+  testWidgets('tapping a wedge opens the popover; delete removes it', (
+    tester,
+  ) async {
     final repo = testRepository();
     await tester.pumpWidget(DayDialApp(repository: repo));
     await tester.pump();
     final before = repo.activeProfile().segments.length;
 
-    // Tap the dial to select a wedge (compass mode; any on-ring point works).
+    // Tap the ring (past the hub) to select a wedge; the radial popover opens.
     final dialCenter = tester.getCenter(find.byType(DialView));
-    await tester.tapAt(dialCenter + const Offset(90, 0));
+    await tester.tapAt(dialCenter + onRing);
     await tester.pump();
 
-    await tester.ensureVisible(find.byTooltip('Delete'));
+    final delete = find.widgetWithText(TextButton, 'Delete');
+    await tester.ensureVisible(delete); // popover scrolls if content is tall
     await tester.pump();
-    await tester.tap(find.byTooltip('Delete'));
+    await tester.tap(delete);
     await tester.pump();
 
     expect(repo.activeProfile().segments.length, before - 1);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('the popover END stepper moves a boundary (day stays 1440)', (
+    tester,
+  ) async {
+    final repo = testRepository();
+    await tester.pumpWidget(DayDialApp(repository: repo));
+    await tester.pump();
+
+    final dialCenter = tester.getCenter(find.byType(DialView));
+    await tester.tapAt(dialCenter + onRing);
+    await tester.pump();
+
+    List<int> durations() =>
+        (repo.activeProfile().segments.map((s) => s.durationMin).toList()
+          ..sort());
+    final before = durations();
+
+    // Push the selected wedge's end edge out by one 15-minute step. All wedges
+    // in the reference day are hours long, so this is always a legal move.
+    await tester.tap(find.byTooltip('End later'));
+    await tester.pump();
+
+    final after = durations();
+    expect(after, isNot(before)); // a boundary moved
+    expect(after.fold(0, (a, b) => a + b), 1440); // ring invariant holds
 
     await tester.pumpWidget(const SizedBox());
   });
@@ -93,55 +123,54 @@ void main() {
     await tester.pump();
 
     expect(repo.habitEvents(), isEmpty);
-    // Tap the + on the first habit row (there's one: "Water").
-    final plus = find.byIcon(Icons.add_circle).first;
-    await tester.ensureVisible(plus);
-    await tester.pump();
-    await tester.tap(plus);
+    // Tap the "Water" habit pill to count one.
+    await tester.tap(find.text('Water'));
     await tester.pump();
     expect(repo.habitEvents(), hasLength(1)); // written through
 
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('start then stop tracking writes one actual', (tester) async {
+  testWidgets('tapping the hub starts then stops tracking, logging one actual', (
+    tester,
+  ) async {
     final repo = testRepository();
     await tester.pumpWidget(DayDialApp(repository: repo));
     await tester.pump();
 
     expect(repo.logs(), isEmpty);
-    await tester.ensureVisible(find.text('Start'));
-    await tester.pump();
-    await tester.tap(find.text('Start'));
-    await tester.pump();
 
-    expect(find.text('Stop'), findsOneWidget); // now tracking
-    await tester.tap(find.text('Stop'));
+    // The hub is the center of the dial; a tap there toggles tracking. The hub
+    // readout is painted on the canvas (not a widget), so we assert on the
+    // durable artifact: an actual is written only when a start is followed by a
+    // stop — so one log after two center taps proves both fired.
+    await tester.tap(find.byType(DialView)); // center == hub → start
     await tester.pump();
+    expect(repo.logs(), isEmpty); // nothing logged mid-session
 
+    await tester.tap(find.byType(DialView)); // center == hub → stop
+    await tester.pump();
     expect(repo.logs(), hasLength(1)); // an actual was logged
 
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('editing a tray task updates the repository', (tester) async {
+  testWidgets('long-pressing a token edits it via the actions sheet', (
+    tester,
+  ) async {
     final repo = testRepository();
     await tester.pumpWidget(DayDialApp(repository: repo));
     await tester.pump();
 
-    // Open the actions menu on the seeded 'Take meds' task.
-    await tester.ensureVisible(find.byIcon(Icons.more_vert).first);
-    await tester.pump();
-    await tester.tap(find.byIcon(Icons.more_vert).first);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400)); // menu opens
+    await tester.longPress(find.text('Take meds'));
+    await tester.pump(const Duration(milliseconds: 300)); // sheet opens
 
     await tester.tap(find.text('Edit…'));
-    await tester.pump(const Duration(milliseconds: 400)); // dialog opens
+    await tester.pump(const Duration(milliseconds: 300)); // sheet closes, dialog
 
     await tester.enterText(find.byType(TextField).first, 'Take vitamins');
     await tester.tap(find.text('Save'));
-    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(repo.tasks().any((t) => t.label == 'Take vitamins'), isTrue);
     expect(repo.tasks().any((t) => t.label == 'Take meds'), isFalse);
@@ -149,21 +178,18 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('archiving a task removes it from the tray', (tester) async {
+  testWidgets('archiving a token removes it from the tray', (tester) async {
     final repo = testRepository();
     await tester.pumpWidget(DayDialApp(repository: repo));
     await tester.pump();
 
     expect(find.text('Take meds'), findsOneWidget);
 
-    await tester.ensureVisible(find.byIcon(Icons.more_vert).first);
-    await tester.pump();
-    await tester.tap(find.byIcon(Icons.more_vert).first);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+    await tester.longPress(find.text('Take meds'));
+    await tester.pump(const Duration(milliseconds: 300));
 
     await tester.tap(find.text('Archive'));
-    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('Take meds'), findsNothing); // gone from the tray
     expect(repo.tasks().single.archived, isTrue); // but still stored, archived
@@ -178,8 +204,6 @@ void main() {
     await tester.pumpWidget(DayDialApp(repository: repo));
     await tester.pump();
 
-    await tester.ensureVisible(find.byKey(const Key('add-task')));
-    await tester.pump();
     await tester.tap(find.byKey(const Key('add-task')));
     await tester.pump(const Duration(milliseconds: 400)); // dialog opens
 
@@ -210,16 +234,15 @@ void main() {
     await tester.pump();
     expect(repo.subBlocks().isEmpty, isTrue);
 
-    // Select a wedge by tapping the ring (any wedge; angle picks one).
+    // Select a wedge by tapping the ring; the popover offers "Add detail".
     final center = tester.getCenter(find.byType(DialView));
-    await tester.tapAt(center + const Offset(90, 0));
+    await tester.tapAt(center + onRing);
     await tester.pump();
 
-    // The selected-block editor now offers "Add detail". The dialog defaults
-    // its times to inside the parent, so accepting them yields a valid sub-block.
-    await tester.ensureVisible(find.text('Add detail'));
+    final addDetail = find.text('Add detail');
+    await tester.ensureVisible(addDetail); // popover scrolls if content is tall
     await tester.pump();
-    await tester.tap(find.text('Add detail'));
+    await tester.tap(addDetail);
     await tester.pump(const Duration(milliseconds: 400));
 
     await tester.enterText(find.byType(TextField).first, 'Focus');
@@ -254,7 +277,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('editing scope: This day makes an override, Reset removes it', (
+  testWidgets('Plans sheet: This day makes an override, Reset removes it', (
     tester,
   ) async {
     final repo = testRepository();
@@ -264,33 +287,33 @@ void main() {
     final today = CivilDate.fromDateTime(DateTime.now());
     expect(repo.profileForDate(today).forDate, isNull); // no override yet
 
-    await tester.ensureVisible(find.text('This day'));
-    await tester.pump();
-    await tester.tap(find.text('This day'));
-    await tester.pump();
+    await tester.tap(find.text('Plans'));
+    await tester.pump(const Duration(milliseconds: 300)); // sheet opens
+    await tester.tap(find.text('Edit this day'));
+    await tester.pump(const Duration(milliseconds: 300)); // sheet closes
     expect(repo.profileForDate(today).forDate, isNotNull); // override created
 
-    await tester.ensureVisible(find.text('Reset'));
-    await tester.pump();
-    await tester.tap(find.text('Reset'));
-    await tester.pump();
+    await tester.tap(find.text('Plans'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Reset this day to template'));
+    await tester.pump(const Duration(milliseconds: 300));
     expect(repo.profileForDate(today).forDate, isNull); // back to the template
 
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('the templates button opens the templates screen', (
-    tester,
-  ) async {
+  testWidgets('the Plans door opens the templates screen', (tester) async {
     final repo = testRepository();
     await tester.pumpWidget(DayDialApp(repository: repo));
     await tester.pump();
 
-    await tester.tap(find.byTooltip('Day templates'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 50));
+    await tester.tap(find.text('Plans'));
+    await tester.pump(const Duration(milliseconds: 300)); // sheet opens
+    await tester.tap(find.text('Day templates'));
+    await tester.pump(); // sheet pops
+    await tester.pump(const Duration(milliseconds: 400)); // route pushes
 
-    expect(find.text('Day templates'), findsOneWidget); // the screen's app bar
-    expect(find.text('New template'), findsOneWidget);
+    expect(find.text('New template'), findsOneWidget); // the screen is up
 
     await tester.pumpWidget(const SizedBox());
   });

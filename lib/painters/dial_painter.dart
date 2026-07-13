@@ -39,6 +39,7 @@ class DialPainter extends CustomPainter {
     this.actuals = const [],
     this.overlay = const [],
     this.subBlocks = const SubBlockPlan.empty(),
+    this.tracking,
   });
 
   final DayProfile profile;
@@ -46,6 +47,11 @@ class DialPainter extends CustomPainter {
   final DialMode mode;
   final DialPalette palette;
   final String? selectedSegmentId;
+
+  /// When non-null, an in-progress tracking session — the hub swaps its
+  /// now/next readout for a live "recording" state (SPEC §4: the hub is the
+  /// start/stop control in the All-Dial shell).
+  final DialTracking? tracking;
 
   /// Logged actuals for the day, drawn as a thin inner ring against the plan.
   final List<ActualArc> actuals;
@@ -381,6 +387,54 @@ class DialPainter extends CustomPainter {
         ..color = palette.plateStroke,
     );
 
+    // Live tracking takes over the hub: recording dot + category + elapsed.
+    final track = tracking;
+    if (track != null) {
+      _hubText(
+        canvas,
+        center,
+        -18 * f,
+        '● REC',
+        TextStyle(
+          color: palette.recording,
+          fontSize: 10 * f,
+          letterSpacing: 1.5,
+          fontWeight: FontWeight.w700,
+        ),
+      );
+      _hubText(
+        canvas,
+        center,
+        2 * f,
+        track.category,
+        TextStyle(
+          color: parseHexColor(track.colorHex),
+          fontSize: 15 * f,
+          fontWeight: FontWeight.w700,
+        ),
+      );
+      _hubText(
+        canvas,
+        center,
+        22 * f,
+        track.elapsedLabel,
+        TextStyle(
+          color: palette.label,
+          fontSize: 17 * f,
+          fontWeight: FontWeight.w700,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      );
+      _hubText(
+        canvas,
+        center,
+        41 * f,
+        'tap to stop',
+        TextStyle(color: palette.hubMuted, fontSize: 9 * f),
+      );
+      return;
+    }
+
     final cur = profile.segmentAt(nowMin);
     final remaining = profile.remainingAt(nowMin);
     final next = profile.nextAfter(nowMin);
@@ -482,8 +536,34 @@ class DialPainter extends CustomPainter {
       old.selectedSegmentId != selectedSegmentId ||
       old.palette != palette ||
       old.subBlocks != subBlocks ||
+      old.tracking != tracking ||
       !listEquals(old.actuals, actuals) ||
       !listEquals(old.overlay, overlay);
+}
+
+/// An in-progress tracking session, as the hub needs to draw it: the category
+/// name, its color, and a pre-formatted elapsed label (the widget owns the
+/// ticking clock; the painter just renders the string).
+class DialTracking {
+  const DialTracking({
+    required this.category,
+    required this.colorHex,
+    required this.elapsedLabel,
+  });
+
+  final String category;
+  final String colorHex;
+  final String elapsedLabel;
+
+  @override
+  bool operator ==(Object other) =>
+      other is DialTracking &&
+      other.category == category &&
+      other.colorHex == colorHex &&
+      other.elapsedLabel == elapsedLabel;
+
+  @override
+  int get hashCode => Object.hash(category, colorHex, elapsedLabel);
 }
 
 /// A logged actual placed on the dial: a `[startMin, endMin)` arc (minutes since
@@ -552,6 +632,7 @@ class DialPalette {
     required this.hub,
     required this.hubMuted,
     required this.marker,
+    required this.recording,
   });
 
   final Color plate;
@@ -566,6 +647,9 @@ class DialPalette {
   final Color hubMuted;
   final Color marker;
 
+  /// Accent for the live-tracking ("recording") hub state.
+  final Color recording;
+
   /// The prototype's dark palette.
   static const dark = DialPalette(
     plate: Color(0xFF141A2B),
@@ -579,6 +663,7 @@ class DialPalette {
     hub: Color(0xFF0B1020),
     hubMuted: Color(0xFF8B90AE),
     marker: Color(0xFFF2E9D8),
+    recording: Color(0xFFD96A5A),
   );
 
   @override

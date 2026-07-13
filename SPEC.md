@@ -41,6 +41,17 @@ Both read from the same model; only the rendering differs.
 ### 2.5 Overlay layer (calendar events)
 Calendar events are **not** segments — they are discrete, sparse, overlapping, point-in-time items and must never enter the segment ring (doing so breaks the constant-sum + boundary-drag invariants). They render as a **separate read-only overlay** on top of the ring: thin arcs / pin markers at their clock position, visually distinct from filled segments (outline / ticks, dimmer). Overlapping events stack outward on concentric tracks. Full calendar spec in §12.
 
+### 2.6 Shell layout — "All-Dial" **[decided]**
+The dial is not a component inside a conventional screen; it **is** the screen. Verbs live on the things they act on, and the rectangle's four corners are the entire navigation surface. This resolves the earlier "phone-column-on-a-desktop" layout.
+
+- **Hub = tracking control.** Tapping the center hub starts/stops tracking the current block (the hub then shows a live recording readout); long-press starts a focus/Pomodoro session. Both end in `log_actual`.
+- **Wedge = radial popover editor.** Tapping a wedge opens a popover anchored at that wedge: rename, recolor, resize either boundary (±15, constant-sum), sub-block detail, delete. Replaces modal dialogs and the old below-dial editor panel.
+- **Tokens & habits orbit the ring.** Must-do tray tokens and habit counters float around the dial as pills (tap to check/count, long-press for actions). *Drag-a-token-onto-a-wedge* placement (SPEC §3) is a follow-up milestone.
+- **Corners are the nav.** One door per non-daily tier: **Plans** (templates, edit scope), **Insight** (plan-vs-actual, review), **Setup** (calendars, export), **Agent** (MCP status/consent — the corner dot is the live server light). Each opens a sheet over the dial; the dial never navigates away.
+- **Degradation:** below ~720 px the popover becomes a bottom sheet and the corners collapse toward a single menu — which is also the intended Phase-2 phone form. Accessibility: the ring exposes a parallel per-wedge semantic list, and every gesture has a keyboard/menu equivalent.
+
+Implementation note: this is a **rendering + input** layer only — no time/segment logic leaves `core` (CLAUDE.md #1). Shared dial geometry (hit-testing, popover/pill anchoring) lives in `lib/painters/dial_geometry.dart`.
+
 ---
 
 ## 3. Recurring untimed tasks

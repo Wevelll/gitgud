@@ -1,12 +1,16 @@
-import 'dart:math' as math;
-
 import 'package:day_dial_core/day_dial_core.dart';
 import 'package:flutter/material.dart';
 
+import '../painters/dial_geometry.dart';
 import '../painters/dial_painter.dart';
 
 /// A self-contained, stateless render of the dial. Kept free of timers and
 /// mutable state so it is trivial to golden-test at a fixed time of day.
+///
+/// The gesture layer classifies each tap by concentric region (via
+/// [DialGeometry]) so the All-Dial shell can put verbs on the things themselves:
+/// the hub is the tracking control, a wedge is selected/edited, and a tap in the
+/// empty corners deselects. All time math still lives in `core`.
 class DialView extends StatelessWidget {
   const DialView({
     super.key,
@@ -15,9 +19,13 @@ class DialView extends StatelessWidget {
     required this.mode,
     this.selectedSegmentId,
     this.onSegmentTapped,
+    this.onHubTapped,
+    this.onHubLongPressed,
+    this.onBackgroundTapped,
     this.actuals = const [],
     this.overlay = const [],
     this.subBlocks = const SubBlockPlan.empty(),
+    this.tracking,
     this.palette = DialPalette.dark,
   });
 
@@ -26,8 +34,17 @@ class DialView extends StatelessWidget {
   final DialMode mode;
   final String? selectedSegmentId;
 
-  /// Called with the tapped segment's id (null taps — the hub — are ignored).
+  /// Called with the tapped segment's id when a wedge is tapped.
   final ValueChanged<String>? onSegmentTapped;
+
+  /// Called when the center hub is tapped — the start/stop tracking control.
+  final VoidCallback? onHubTapped;
+
+  /// Called on a long-press of the hub — begins a focus/Pomodoro session.
+  final VoidCallback? onHubLongPressed;
+
+  /// Called when a tap lands outside the ring (the empty corners) — deselects.
+  final VoidCallback? onBackgroundTapped;
 
   /// Logged actuals to overlay on the inner ring.
   final List<ActualArc> actuals;
@@ -37,7 +54,16 @@ class DialView extends StatelessWidget {
 
   /// Sparse sub-block overlay; the active/selected block subdivides into these.
   final SubBlockPlan subBlocks;
+
+  /// In-progress tracking session; when set the hub shows the recording state.
+  final DialTracking? tracking;
   final DialPalette palette;
+
+  bool get _interactive =>
+      onSegmentTapped != null ||
+      onHubTapped != null ||
+      onHubLongPressed != null ||
+      onBackgroundTapped != null;
 
   @override
   Widget build(BuildContext context) {
@@ -47,9 +73,11 @@ class DialView extends StatelessWidget {
         builder: (context, constraints) {
           final size = Size(constraints.maxWidth, constraints.maxHeight);
           return GestureDetector(
-            onTapDown: onSegmentTapped == null
+            onTapUp:
+                _interactive ? (d) => _handleTap(d.localPosition, size) : null,
+            onLongPressStart: onHubLongPressed == null
                 ? null
-                : (details) => _handleTap(details.localPosition, size),
+                : (d) => _handleLongPress(d.localPosition, size),
             child: CustomPaint(
               size: size,
               painter: DialPainter(
@@ -61,6 +89,7 @@ class DialView extends StatelessWidget {
                 actuals: actuals,
                 overlay: overlay,
                 subBlocks: subBlocks,
+                tracking: tracking,
               ),
             ),
           );
@@ -69,19 +98,26 @@ class DialView extends StatelessWidget {
     );
   }
 
-  /// Maps a tap to the segment under it, undoing the compass rotation so the
-  /// same math works in both modes. The time math itself lives in `core`.
+  double _rotation() => DialGeometry.rotationDeg(
+        compass: mode == DialMode.compass,
+        nowMin: nowMin,
+      );
+
   void _handleTap(Offset local, Size size) {
-    final center = size.center(Offset.zero);
-    final v = local - center;
-    // Angle clockwise from the top (12 o'clock).
-    final screenDeg = (math.atan2(v.dx, -v.dy) * 180 / math.pi) % 360;
-    // In compass mode the disc is rotated by -timeAngle(now); undo it.
-    final thetaDeg = mode == DialMode.compass
-        ? -(nowMin / 1440.0 * 360.0)
-        : 0.0;
-    final discDeg = (screenDeg - thetaDeg) % 360;
-    final minute = ((discDeg / 360.0) * 1440).round() % 1440;
-    onSegmentTapped!(profile.segmentAt(minute).id);
+    switch (DialGeometry.regionAt(size, local)) {
+      case DialRegion.hub:
+        onHubTapped?.call();
+      case DialRegion.ring:
+        final minute = DialGeometry.minuteAt(size, local, _rotation());
+        onSegmentTapped?.call(profile.segmentAt(minute).id);
+      case DialRegion.outside:
+        onBackgroundTapped?.call();
+    }
+  }
+
+  void _handleLongPress(Offset local, Size size) {
+    if (DialGeometry.regionAt(size, local) == DialRegion.hub) {
+      onHubLongPressed?.call();
+    }
   }
 }

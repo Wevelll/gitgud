@@ -26,6 +26,8 @@ working conventions in this repo.
 - **Web companion** that syncs to the desktop hub on localhost and falls back
   to a local in-browser day when no hub is reachable. Fully self-contained
   bundle — no CDN fetches (fonts and CanvasKit ship with the build).
+- **Light & dark themes.** Follows the OS by default; cycle
+  system → light → dark from the dial toolbar (persisted per device).
 
 ## Platforms
 
@@ -88,3 +90,7 @@ Notes:
 - **Notifications** are local-only on every platform (no push service). On
   Linux delivery uses the session D-Bus and degrades to a log line when no
   bus is available (e.g. headless).
+- **App icons** are generated, not hand-maintained: `tool/icons/` renders the
+  dial mark into every platform format (Android adaptive + themed monochrome,
+  iOS light/dark/tinted, macOS, Windows ICO, web PWA + theme-aware SVG
+  favicon, Linux). See `tool/icons/generate.py` for the pipeline.

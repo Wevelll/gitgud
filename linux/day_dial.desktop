@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Day-Dial
+GenericName=Day planner
+Comment=Local-first 24-hour day planner and tracker built around a rotating dial
+Exec=day_dial
+Icon=io.github.wevelll.day_dial
+Terminal=false
+Type=Application
+Categories=Office;Calendar;Utility;
+Keywords=time;planner;tracker;dial;schedule;
+StartupWMClass=day_dial

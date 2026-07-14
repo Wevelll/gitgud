@@ -7,7 +7,8 @@ version: 0.0.1
 publish_to: none
 
 environment:
-  sdk: ^3.6.0
+  # >= 3.10 for sqlite3 3.x build hooks, pulled in via day_dial_store.
+  sdk: ^3.10.0
 
 dependencies:
   day_dial_core:
@@ -17,3 +18,10 @@ dependencies:
 
 dev_dependencies:
   test: ^1.25.0
+
+# Same rationale as packages/store: this package's own test runs link the
+# host's SQLite (hermetic, offline-friendly); app builds bundle per platform.
+hooks:
+  user_defines:
+    sqlite3:
+      source: system

@@ -7,12 +7,26 @@ version: 0.0.1
 publish_to: none
 
 environment:
-  sdk: ^3.6.0
+  # sqlite3 3.x ships its native library via Dart build hooks (native assets),
+  # which need Dart >= 3.10. This is what makes the store work out of the box
+  # on Android/iOS/Windows too — no separate sqlite3_flutter_libs package
+  # (that package is EOL; 3.x replaces it).
+  sdk: ^3.10.0
 
 dependencies:
   day_dial_core:
     path: ../core
-  sqlite3: ^2.4.0
+  sqlite3: ^3.4.0
 
 dev_dependencies:
   test: ^1.25.0
+
+# For this package's own `dart test` runs, link the host's SQLite instead of
+# downloading a prebuilt binary — hermetic and offline-friendly, and the same
+# behavior the sqlite3 2.x binding had. Only applies when this package is the
+# root (i.e. running the store tests); the app's builds bundle SQLite per
+# platform via sqlite3's build hook defaults.
+hooks:
+  user_defines:
+    sqlite3:
+      source: system

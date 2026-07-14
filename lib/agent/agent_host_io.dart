@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 
 import 'package:day_dial_mcp/day_dial_mcp.dart';
@@ -7,10 +8,37 @@ import 'activity_log.dart';
 import 'agent_host.dart';
 
 /// Desktop factory — a real loopback MCP server over the app repository.
+/// Mobile is an MCP *client* of the desktop hub in v1 (SPEC §6.1) and hosts
+/// no server, so it gets the same "unavailable" stub the web build uses.
 AgentHost makeAgentHost({
   required DayRepository repository,
   required GlobalKey<NavigatorState> navigatorKey,
-}) => _IoAgentHost(repository, navigatorKey);
+}) {
+  if (Platform.isAndroid || Platform.isIOS) return _UnavailableAgentHost();
+  return _IoAgentHost(repository, navigatorKey);
+}
+
+class _UnavailableAgentHost implements AgentHost {
+  @override
+  final ActivityLog activity = ActivityLog();
+
+  @override
+  bool get available => false;
+  @override
+  bool get running => false;
+  @override
+  Uri? get endpoint => null;
+  @override
+  String? get token => null;
+
+  @override
+  AgentConsentPolicy policy = AgentConsentPolicy.promptEveryWrite;
+
+  @override
+  Future<void> start() async {}
+  @override
+  Future<void> stop() async {}
+}
 
 class _IoAgentHost implements AgentHost {
   _IoAgentHost(this._repo, GlobalKey<NavigatorState> navKey)

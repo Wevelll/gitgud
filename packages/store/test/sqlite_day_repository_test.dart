@@ -6,25 +6,25 @@ import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 DayProfile weekday() => DayProfile.ring(
-      id: 'weekday',
-      name: 'Weekday',
-      isDefault: true,
-      segmentIds: const ['sleep', 'morning', 'work'],
-      spans: const [
-        (startMin: 1380, name: 'Sleep', colorHex: '#4B4FA6'),
-        (startMin: 420, name: 'Morning', colorHex: '#C98A3E'),
-        (startMin: 540, name: 'Work', colorHex: '#3E7CB1'),
-      ],
-    );
+  id: 'weekday',
+  name: 'Weekday',
+  isDefault: true,
+  segmentIds: const ['sleep', 'morning', 'work'],
+  spans: const [
+    (startMin: 1380, name: 'Sleep', colorHex: '#4B4FA6'),
+    (startMin: 420, name: 'Morning', colorHex: '#C98A3E'),
+    (startMin: 540, name: 'Work', colorHex: '#3E7CB1'),
+  ],
+);
 
 DayProfile weekend() => DayProfile.ring(
-      id: 'weekend',
-      name: 'Weekend',
-      spans: const [
-        (startMin: 1380, name: 'Sleep', colorHex: '#4B4FA6'),
-        (startMin: 540, name: 'Chill', colorHex: '#6FA85B'),
-      ],
-    );
+  id: 'weekend',
+  name: 'Weekend',
+  spans: const [
+    (startMin: 1380, name: 'Sleep', colorHex: '#4B4FA6'),
+    (startMin: 540, name: 'Chill', colorHex: '#6FA85B'),
+  ],
+);
 
 DateTime fixedClock() => DateTime(2026, 7, 3, 7, 30);
 
@@ -65,7 +65,11 @@ void main() {
     test('addBlock is written and reloads through core validation', () {
       final repo = memRepo();
       final seg = repo.addBlock(
-          name: 'Gym', colorHex: '#fff', startMin: 600, endMin: 660);
+        name: 'Gym',
+        colorHex: '#fff',
+        startMin: 600,
+        endMin: 660,
+      );
       // Re-read from the db to prove it round-tripped.
       final reloaded = repo.activeProfile();
       expect(reloaded.segments.any((s) => s.id == seg.id), isTrue);
@@ -77,7 +81,9 @@ void main() {
       final repo = memRepo();
       repo.deleteBlock('morning');
       expect(
-          repo.activeProfile().segments.any((s) => s.id == 'morning'), isFalse);
+        repo.activeProfile().segments.any((s) => s.id == 'morning'),
+        isFalse,
+      );
       repo.close();
     });
   });
@@ -156,7 +162,7 @@ void main() {
         raw.execute(
           "INSERT INTO segments VALUES ('s2','p',720,0,'Free','#6FA85B',1)",
         );
-        raw.dispose();
+        raw.close();
 
         // Opening through the repo runs the guarded ALTER migration.
         final repo = SqliteDayRepository.open(path: path);
@@ -174,9 +180,10 @@ void main() {
     test('recurring task + idempotent completion', () {
       final repo = memRepo();
       final task = repo.addRecurringTask(
-          label: 'Meds',
-          recurrence: const DailyRecurrence(),
-          colorHex: '#6FA85B');
+        label: 'Meds',
+        recurrence: const DailyRecurrence(),
+        colorHex: '#6FA85B',
+      );
       final date = CivilDate.parse('2026-07-03');
 
       repo.completeTask(task.id, date);
@@ -307,8 +314,11 @@ void main() {
     test('add, increment, count, and decrement (persisted)', () {
       final repo = memRepo();
       final today = CivilDate.parse('2026-07-03');
-      final water =
-          repo.addHabit(label: 'Water', colorHex: '#3E7CB1', dailyTarget: 8);
+      final water = repo.addHabit(
+        label: 'Water',
+        colorHex: '#3E7CB1',
+        dailyTarget: 8,
+      );
 
       repo.incrementHabit(water.id, date: today);
       repo.incrementHabit(water.id, date: today);
@@ -338,7 +348,10 @@ void main() {
     final today = CivilDate.parse('2026-07-03');
     source.addHabit(label: 'Water', colorHex: '#3E7CB1', dailyTarget: 8);
     source.addRecurringTask(
-        label: 'Meds', recurrence: const DailyRecurrence(), colorHex: '#abc');
+      label: 'Meds',
+      recurrence: const DailyRecurrence(),
+      colorHex: '#abc',
+    );
     final snap = source.snapshot();
 
     final target = memRepo(seed: [weekend()]);
@@ -348,8 +361,10 @@ void main() {
     expect(target.activeProfile().name, 'Weekday');
     expect(target.habits().single.label, 'Water');
     expect(target.tasks().single.label, 'Meds');
-    expect(habitCountOn(today, target.habits().single.id, target.habitEvents()),
-        0);
+    expect(
+      habitCountOn(today, target.habits().single.id, target.habitEvents()),
+      0,
+    );
     source.close();
     target.close();
   });
@@ -370,15 +385,18 @@ void main() {
       );
       repo.addBlock(name: 'Gym', colorHex: '#fff', startMin: 600, endMin: 660);
       repo.addRecurringTask(
-          label: 'Meds',
-          recurrence: const DailyRecurrence(),
-          colorHex: '#6FA85B');
+        label: 'Meds',
+        recurrence: const DailyRecurrence(),
+        colorHex: '#6FA85B',
+      );
       repo.close();
 
       // Simulate a restart: brand-new connection, no seed.
       final reopened = SqliteDayRepository.open(path: path);
-      expect(reopened.activeProfile().segments.any((s) => s.name == 'Gym'),
-          isTrue);
+      expect(
+        reopened.activeProfile().segments.any((s) => s.name == 'Gym'),
+        isTrue,
+      );
       expect(reopened.tasks().single.label, 'Meds');
       expect(reopened.activeProfile().name, 'Weekday'); // active id persisted
       reopened.close();

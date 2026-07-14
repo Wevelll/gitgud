@@ -87,8 +87,9 @@ class _AgentScreenState extends State<AgentScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          'The web companion talks to your desktop hub instead of hosting its '
-          'own MCP server.',
+          'This device talks to your desktop hub instead of hosting its '
+          'own MCP server. Run the Day-Dial desktop app to expose your day '
+          'to agents.',
           style: TextStyle(color: Colors.white.withValues(alpha: 0.55)),
         ),
       ],

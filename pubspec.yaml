@@ -1,5 +1,5 @@
 name: day_dial
-description: "A new Flutter project."
+description: "A local-first, agent-controllable 24-hour day planner and tracker built around a rotating dial."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -49,6 +49,17 @@ dependencies:
   # Cross-platform HTTP client — the web companion uses it to sync with the hub.
   http: ^1.2.0
 
+  # Resolves the app-private data directory on Android/iOS, where `$HOME` is
+  # not a writable app dir. Desktop keeps plain `~/.day_dial` (no plugin
+  # channel), so this is only reached on mobile. First-party Flutter plugin.
+  path_provider: ^2.1.6
+
+  # Real OS delivery for segment-transition notifications (SPEC §11 MVP) on
+  # Android/iOS/macOS/Linux/Windows, behind the existing Notifier seam; the
+  # web build keeps its browser-Notifications path and never pulls this in.
+  # Falls back to a debug log if the platform refuses (see notifier_io.dart).
+  flutter_local_notifications: ^22.0.1
+
   # Browser Notifications API bindings, used only by the web build's notifier
   # (packages/lib notifications/notifier_web.dart). Official, minimal, web-only;
   # desktop delivery is a separate seam and doesn't pull this in.
@@ -57,6 +68,11 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+
+  # SDK package required by the generated web plugin registrant once any
+  # plugin (here flutter_local_notifications) ships a web implementation.
+  flutter_web_plugins:
+    sdk: flutter
 
 dev_dependencies:
   flutter_test:
@@ -120,3 +136,4 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+

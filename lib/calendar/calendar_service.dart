@@ -21,9 +21,9 @@ class CalendarService {
     List<CalendarSource> sources = const [],
     IcsFetcher? fetcher,
     CalendarSourceStore? store,
-  })  : _sources = [...sources],
-        _fetch = fetcher ?? _httpFetch,
-        _store = store ?? const NullCalendarSourceStore();
+  }) : _sources = [...sources],
+       _fetch = fetcher ?? _httpFetch,
+       _store = store ?? const NullCalendarSourceStore();
 
   final List<CalendarSource> _sources;
   final IcsFetcher _fetch;
@@ -105,7 +105,9 @@ class CalendarService {
 
   static Future<String> _httpFetch(CalendarSource s) async {
     final raw = s.url;
-    if (raw == null) throw ArgumentError('Calendar source "${s.id}" has no URL');
+    if (raw == null) {
+      throw ArgumentError('Calendar source "${s.id}" has no URL');
+    }
     // `webcal://` is the ICS-subscription convention — it's plain HTTP(S).
     final url = raw.replaceFirst(RegExp('^webcal://'), 'https://');
     final resp = await http.get(Uri.parse(url));

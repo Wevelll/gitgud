@@ -3,6 +3,7 @@
 .packages
 build/
 *.iml
+.flutter-plugins-dependencies
 
 # Library packages don't commit their lockfile (apps do). core/mcp are libs.
 packages/*/pubspec.lock

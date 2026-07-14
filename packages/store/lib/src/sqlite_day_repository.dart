@@ -38,7 +38,7 @@ class SqliteDayRepository implements DayRepository {
   }
 
   /// Releases the database handle.
-  void close() => _db.dispose();
+  void close() => _db.close();
 
   /// Default id generator: a per-open time base plus a counter, so ids stay
   /// unique **across restarts** (a plain 1,2,3 sequence would collide with ids
@@ -78,17 +78,19 @@ class SqliteDayRepository implements DayRepository {
     for (final p in seed) {
       _insertProfile(p);
     }
-    final active =
-        seed.firstWhere((p) => p.isDefault, orElse: () => seed.first);
+    final active = seed.firstWhere(
+      (p) => p.isDefault,
+      orElse: () => seed.first,
+    );
     _setSetting('active_profile_id', active.id);
   }
 
   // ---- settings -------------------------------------------------------------
 
   void _setSetting(String key, String value) => _db.execute(
-        'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
-        [key, value],
-      );
+    'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+    [key, value],
+  );
 
   String? _getSetting(String key) {
     final rows = _db.select('SELECT value FROM settings WHERE key = ?', [key]);
@@ -142,7 +144,7 @@ class SqliteDayRepository implements DayRepository {
           colorHex: s['color'] as String,
           startMin: s['start_min'] as int,
           endMin: s['end_min'] as int,
-        )
+        ),
     ];
     return DayProfile(
       id: p['id'] as String,
@@ -173,10 +175,9 @@ class SqliteDayRepository implements DayRepository {
 
   @override
   DayProfile overrideForDate(CivilDate date) {
-    final existing = _db.select(
-      'SELECT id FROM profiles WHERE for_date = ?',
-      [date.iso],
-    );
+    final existing = _db.select('SELECT id FROM profiles WHERE for_date = ?', [
+      date.iso,
+    ]);
     if (existing.isNotEmpty) {
       return _loadProfile(existing.first['id'] as String);
     }
@@ -222,8 +223,9 @@ class SqliteDayRepository implements DayRepository {
 
   @override
   void resetDate(CivilDate date) {
-    final rows =
-        _db.select('SELECT id FROM profiles WHERE for_date = ?', [date.iso]);
+    final rows = _db.select('SELECT id FROM profiles WHERE for_date = ?', [
+      date.iso,
+    ]);
     for (final r in rows) {
       final id = r['id'] as String;
       final segIds = _db
@@ -232,10 +234,13 @@ class SqliteDayRepository implements DayRepository {
           .toList();
       if (id == _activeIdOrNull) {
         _setSetting(
-            'active_profile_id', weekdayTemplateFor(date, profiles()).id);
+          'active_profile_id',
+          weekdayTemplateFor(date, profiles()).id,
+        );
       }
-      _db.execute(
-          'DELETE FROM profiles WHERE id = ?', [id]); // cascades segments
+      _db.execute('DELETE FROM profiles WHERE id = ?', [
+        id,
+      ]); // cascades segments
       for (final sid in segIds) {
         _db.execute('DELETE FROM sub_segments WHERE parent_segment_id = ?', [
           sid,
@@ -248,8 +253,9 @@ class SqliteDayRepository implements DayRepository {
 
   @override
   void switchProfile(String profileId) {
-    final exists =
-        _db.select('SELECT 1 FROM profiles WHERE id = ?', [profileId]);
+    final exists = _db.select('SELECT 1 FROM profiles WHERE id = ?', [
+      profileId,
+    ]);
     if (exists.isEmpty) throw StateError('No profile "$profileId"');
     _setSetting('active_profile_id', profileId);
   }
@@ -262,8 +268,9 @@ class SqliteDayRepository implements DayRepository {
 
   @override
   void addProfile(DayProfile profile) {
-    if (_db.select(
-        'SELECT 1 FROM profiles WHERE id = ?', [profile.id]).isNotEmpty) {
+    if (_db.select('SELECT 1 FROM profiles WHERE id = ?', [
+      profile.id,
+    ]).isNotEmpty) {
       throw StateError('Profile "${profile.id}" already exists');
     }
     _insertProfile(profile);
@@ -282,8 +289,9 @@ class SqliteDayRepository implements DayRepository {
         .toList();
     _db.execute('DELETE FROM profiles WHERE id = ?', [id]); // cascades segments
     for (final sid in segIds) {
-      _db.execute(
-          'DELETE FROM sub_segments WHERE parent_segment_id = ?', [sid]);
+      _db.execute('DELETE FROM sub_segments WHERE parent_segment_id = ?', [
+        sid,
+      ]);
     }
   }
 
@@ -296,10 +304,10 @@ class SqliteDayRepository implements DayRepository {
   @override
   void setProfileWeekdays(String id, int activeDaysMask) {
     _requireProfile(id);
-    _db.execute(
-      'UPDATE profiles SET active_days_mask = ? WHERE id = ?',
-      [activeDaysMask, id],
-    );
+    _db.execute('UPDATE profiles SET active_days_mask = ? WHERE id = ?', [
+      activeDaysMask,
+      id,
+    ]);
   }
 
   @override
@@ -363,13 +371,15 @@ class SqliteDayRepository implements DayRepository {
     );
     final map = <String, List<Segment>>{};
     for (final r in rows) {
-      (map[r['parent_segment_id'] as String] ??= []).add(Segment(
-        id: r['id'] as String,
-        name: r['name'] as String,
-        colorHex: r['color'] as String,
-        startMin: r['start_min'] as int,
-        endMin: r['end_min'] as int,
-      ));
+      (map[r['parent_segment_id'] as String] ??= []).add(
+        Segment(
+          id: r['id'] as String,
+          name: r['name'] as String,
+          colorHex: r['color'] as String,
+          startMin: r['start_min'] as int,
+          endMin: r['end_min'] as int,
+        ),
+      );
     }
     return map;
   }
@@ -501,7 +511,7 @@ class SqliteDayRepository implements DayRepository {
           recurrence: Recurrence.parse(r['recurrence_rule'] as String),
           createdAt: r['created_at'] as String,
           archived: (r['archived'] as int) == 1,
-        )
+        ),
     ];
   }
 
@@ -515,7 +525,7 @@ class SqliteDayRepository implements DayRepository {
           taskId: r['task_id'] as String,
           date: CivilDate.parse(r['date'] as String),
           completedAt: r['completed_at'] as String,
-        )
+        ),
     ];
   }
 
@@ -549,8 +559,9 @@ class SqliteDayRepository implements DayRepository {
 
   @override
   void completeTask(String taskId, CivilDate date) {
-    final exists =
-        _db.select('SELECT 1 FROM recurring_tasks WHERE id = ?', [taskId]);
+    final exists = _db.select('SELECT 1 FROM recurring_tasks WHERE id = ?', [
+      taskId,
+    ]);
     if (exists.isEmpty) throw StateError('No task "$taskId"');
     // UNIQUE(task_id, date) + OR IGNORE makes this idempotent per (task, date).
     _db.execute(
@@ -562,10 +573,10 @@ class SqliteDayRepository implements DayRepository {
 
   @override
   void uncompleteTask(String taskId, CivilDate date) {
-    _db.execute(
-      'DELETE FROM task_completions WHERE task_id = ? AND date = ?',
-      [taskId, date.iso],
-    );
+    _db.execute('DELETE FROM task_completions WHERE task_id = ? AND date = ?', [
+      taskId,
+      date.iso,
+    ]);
   }
 
   RecurringTask _loadTask(String id) {
@@ -589,11 +600,9 @@ class SqliteDayRepository implements DayRepository {
     String? colorHex,
     Recurrence? recurrence,
   }) {
-    final updated = _loadTask(id).copyWith(
-      label: label,
-      colorHex: colorHex,
-      recurrence: recurrence,
-    );
+    final updated = _loadTask(
+      id,
+    ).copyWith(label: label, colorHex: colorHex, recurrence: recurrence);
     _db.execute(
       'UPDATE recurring_tasks SET label = ?, color = ?, recurrence_rule = ? '
       'WHERE id = ?',
@@ -605,10 +614,10 @@ class SqliteDayRepository implements DayRepository {
   @override
   void setTaskArchived(String id, {required bool archived}) {
     _loadTask(id); // existence check (throws if unknown)
-    _db.execute(
-      'UPDATE recurring_tasks SET archived = ? WHERE id = ?',
-      [archived ? 1 : 0, id],
-    );
+    _db.execute('UPDATE recurring_tasks SET archived = ? WHERE id = ?', [
+      archived ? 1 : 0,
+      id,
+    ]);
   }
 
   @override
@@ -635,7 +644,7 @@ class SqliteDayRepository implements DayRepository {
           segmentId: r['segment_id'] as String?,
           note: r['note'] as String?,
           source: _parseSource(r['source'] as String),
-        )
+        ),
     ];
   }
 
@@ -676,8 +685,10 @@ class SqliteDayRepository implements DayRepository {
     return log;
   }
 
-  static LogSource _parseSource(String s) => LogSource.values
-      .firstWhere((v) => v.name == s, orElse: () => LogSource.manual);
+  static LogSource _parseSource(String s) => LogSource.values.firstWhere(
+    (v) => v.name == s,
+    orElse: () => LogSource.manual,
+  );
 
   // ---- habits ---------------------------------------------------------------
 
@@ -694,7 +705,7 @@ class SqliteDayRepository implements DayRepository {
           polarity: _parsePolarity(r['polarity'] as String),
           dailyTarget: r['daily_target'] as int?,
           archived: (r['archived'] as int) == 1,
-        )
+        ),
     ];
   }
 
@@ -708,7 +719,7 @@ class SqliteDayRepository implements DayRepository {
           habitId: r['habit_id'] as String,
           date: CivilDate.parse(r['date'] as String),
           ts: r['ts'] as String,
-        )
+        ),
     ];
   }
 
@@ -770,10 +781,9 @@ class SqliteDayRepository implements DayRepository {
       [habitId, date.iso],
     );
     if (rows.isEmpty) return false;
-    _db.execute(
-      'DELETE FROM habit_events WHERE id = ?',
-      [rows.first['id'] as String],
-    );
+    _db.execute('DELETE FROM habit_events WHERE id = ?', [
+      rows.first['id'] as String,
+    ]);
     return true;
   }
 
@@ -782,15 +792,15 @@ class SqliteDayRepository implements DayRepository {
 
   @override
   DaySnapshot snapshot() => DaySnapshot(
-        profiles: profiles(),
-        activeProfileId: _activeId,
-        tasks: tasks(),
-        completions: completions(),
-        logs: logs(),
-        habits: habits(),
-        habitEvents: habitEvents(),
-        subBlocks: _loadSubBlockMap(),
-      );
+    profiles: profiles(),
+    activeProfileId: _activeId,
+    tasks: tasks(),
+    completions: completions(),
+    logs: logs(),
+    habits: habits(),
+    habitEvents: habitEvents(),
+    subBlocks: _loadSubBlockMap(),
+  );
 
   @override
   void restore(DaySnapshot snapshot) {

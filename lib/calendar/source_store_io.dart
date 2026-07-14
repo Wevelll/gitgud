@@ -3,21 +3,27 @@ import 'dart:io';
 
 import 'package:day_dial_core/day_dial_core.dart';
 
+import '../data/app_dirs_io.dart';
 import 'source_store.dart';
 
-/// Desktop/native store — persists the source list as JSON under the user's
-/// config dir (`$HOME/.day_dial/calendar_sources.json`).
+/// Desktop/mobile store — persists the source list as JSON in the platform's
+/// app-data directory (`~/.day_dial/calendar_sources.json` on desktop).
 CalendarSourceStore makeCalendarSourceStore({String? path}) =>
     IoCalendarSourceStore(path);
 
 class IoCalendarSourceStore implements CalendarSourceStore {
-  IoCalendarSourceStore([String? path]) : _path = path ?? _defaultPath();
+  IoCalendarSourceStore([this._fixedPath]);
 
-  final String _path;
+  /// Test override; the default is resolved per platform on first use (the
+  /// mobile app-dir lookup is async, so it can't happen in the constructor).
+  final String? _fixedPath;
+
+  Future<String> _path() async =>
+      _fixedPath ?? '${(await appDataDirectory()).path}/calendar_sources.json';
 
   @override
   Future<List<CalendarSource>> load() async {
-    final file = File(_path);
+    final file = File(await _path());
     if (!file.existsSync()) return const [];
     try {
       final data = jsonDecode(await file.readAsString());
@@ -34,17 +40,8 @@ class IoCalendarSourceStore implements CalendarSourceStore {
 
   @override
   Future<void> save(List<CalendarSource> sources) async {
-    final file = File(_path);
+    final file = File(await _path());
     await file.parent.create(recursive: true);
-    await file.writeAsString(
-      jsonEncode([for (final s in sources) s.toJson()]),
-    );
-  }
-
-  static String _defaultPath() {
-    final home =
-        Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
-    final base = home ?? Directory.systemTemp.path;
-    return '$base/.day_dial/calendar_sources.json';
+    await file.writeAsString(jsonEncode([for (final s in sources) s.toJson()]));
   }
 }

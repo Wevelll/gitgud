@@ -1,6 +1,8 @@
 import 'package:day_dial_core/day_dial_core.dart';
 import 'package:flutter/material.dart';
 
+import '../theme.dart';
+
 import '../calendar/calendar_service.dart';
 import '../painters/dial_painter.dart' show parseHexColor;
 
@@ -26,7 +28,6 @@ class CalendarSettingsScreen extends StatefulWidget {
 }
 
 class _CalendarSettingsScreenState extends State<CalendarSettingsScreen> {
-  static const _panel = Color(0xFF0E1322);
   bool _busy = false;
 
   CalendarService get _service => widget.service;
@@ -110,21 +111,19 @@ class _CalendarSettingsScreenState extends State<CalendarSettingsScreen> {
                   'Read-only overlay. Paste an ICS subscription or CalDAV URL '
                   '(webcal:// works too). Events show on the dial, never as '
                   'blocks.',
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.55)),
+                  style: TextStyle(color: context.inkAlpha(0.55)),
                 ),
                 const SizedBox(height: 16),
                 if (sources.isEmpty)
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: _panel,
+                      color: context.panel,
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Text(
                       'No calendars yet — add one with the button below.',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.55),
-                      ),
+                      style: TextStyle(color: context.inkAlpha(0.55)),
                     ),
                   )
                 else
@@ -142,7 +141,7 @@ class _CalendarSettingsScreenState extends State<CalendarSettingsScreen> {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: _panel,
+        color: context.panel,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -165,10 +164,7 @@ class _CalendarSettingsScreenState extends State<CalendarSettingsScreen> {
                   '${s.kind.name.toUpperCase()} · ${s.url ?? s.calId ?? ''}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.white.withValues(alpha: 0.45),
-                  ),
+                  style: TextStyle(fontSize: 11, color: context.inkAlpha(0.45)),
                 ),
               ],
             ),
@@ -290,7 +286,7 @@ class _AddSourceDialogState extends State<_AddSourceDialog> {
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: hex == _color
-                              ? Colors.white
+                              ? context.ink
                               : Colors.transparent,
                           width: 2,
                         ),

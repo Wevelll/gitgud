@@ -581,6 +581,23 @@ class DialPalette {
     marker: Color(0xFFF2E9D8),
   );
 
+  /// Light-theme counterpart. The hub deliberately stays a dark "well" (as in
+  /// the app icon): [label] is drawn both on colored wedges and inside the
+  /// hub, and a dark hub keeps white text readable in both places.
+  static const light = DialPalette(
+    plate: Color(0xFFFFFFFF),
+    plateStroke: Color(0xFFDCE0EE),
+    wedgeStroke: Color(0xFFF2F3F8),
+    selectedStroke: Color(0xFF2A3050),
+    tickMajor: Color(0xFF8F96B4),
+    tickMinor: Color(0xFFD6DAE8),
+    label: Color(0xFFFAFBFF),
+    numeral: Color(0xFF8A90AC),
+    hub: Color(0xFF10162A),
+    hubMuted: Color(0xFF8B90AE),
+    marker: Color(0xFF2A3050),
+  );
+
   @override
   bool operator ==(Object other) =>
       other is DialPalette &&

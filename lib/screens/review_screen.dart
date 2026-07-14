@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:day_dial_core/day_dial_core.dart';
 import 'package:flutter/material.dart';
 
+import '../theme.dart';
+
 import '../calendar/calendar_service.dart';
 import '../export/exporter.dart';
 import '../painters/dial_painter.dart' show parseHexColor;
@@ -31,8 +33,6 @@ class ReviewScreen extends StatefulWidget {
 
 class _ReviewScreenState extends State<ReviewScreen> {
   ReviewRange _range = ReviewRange.week;
-
-  static const _panel = Color(0xFF0E1322);
 
   DayRepository get _repo => widget.repository;
 
@@ -98,7 +98,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 const SizedBox(height: 8),
                 Text(
                   '${review.from.iso} → ${review.to.iso}',
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
+                  style: TextStyle(color: context.inkAlpha(0.4)),
                 ),
                 const SizedBox(height: 16),
                 _summary(review, hasCalendar),
@@ -144,7 +144,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _panel,
+        color: context.panel,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -177,7 +177,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
           style: TextStyle(
             fontSize: 10,
             letterSpacing: 1.5,
-            color: Colors.white.withValues(alpha: 0.45),
+            color: context.inkAlpha(0.45),
           ),
         ),
         const SizedBox(height: 4),
@@ -194,7 +194,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
             sub,
             style: TextStyle(
               fontSize: 12,
-              color: Colors.white.withValues(alpha: 0.5),
+              color: context.inkAlpha(0.5),
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
@@ -231,7 +231,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
       style: TextStyle(
         fontSize: 11,
         letterSpacing: 2,
-        color: Colors.white.withValues(alpha: 0.45),
+        color: context.inkAlpha(0.45),
       ),
     ),
   );
@@ -239,13 +239,10 @@ class _ReviewScreenState extends State<ReviewScreen> {
   Widget _hint(String text) => Container(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      color: _panel,
+      color: context.panel,
       borderRadius: BorderRadius.circular(12),
     ),
-    child: Text(
-      text,
-      style: TextStyle(color: Colors.white.withValues(alpha: 0.55)),
-    ),
+    child: Text(text, style: TextStyle(color: context.inkAlpha(0.55))),
   );
 
   Widget _streakRow(NamedStreak s) {
@@ -253,7 +250,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: _panel,
+        color: context.panel,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -263,13 +260,10 @@ class _ReviewScreenState extends State<ReviewScreen> {
             '🔥 ${s.streak.current}',
             s.streak.current > 0
                 ? const Color(0xFFC98A3E)
-                : Colors.white.withValues(alpha: 0.3),
+                : context.inkAlpha(0.3),
           ),
           const SizedBox(width: 8),
-          _pill(
-            'best ${s.streak.longest}',
-            Colors.white.withValues(alpha: 0.5),
-          ),
+          _pill('best ${s.streak.longest}', context.inkAlpha(0.5)),
         ],
       ),
     );
@@ -304,7 +298,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
           Text(
             '${formatDuration(v.actualMin)} / ${formatDuration(v.plannedMin)}',
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.6),
+              color: context.inkAlpha(0.6),
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
@@ -316,7 +310,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
               textAlign: TextAlign.right,
               style: TextStyle(
                 color: d == 0
-                    ? Colors.white.withValues(alpha: 0.5)
+                    ? context.inkAlpha(0.5)
                     : (d > 0
                           ? const Color(0xFFC98A3E)
                           : const Color(0xFF5A9FB0)),

@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'agent/agent_host.dart';
 import 'calendar/calendar_service.dart';
 import 'calendar/source_store.dart';
+import 'data/prefs_store.dart';
 import 'data/repository_factory.dart';
 import 'notifications/notification_scheduler.dart';
 import 'notifications/notifier.dart';
 import 'screens/dial_screen.dart';
+import 'theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -48,10 +50,33 @@ class _DayDialAppState extends State<DayDialApp> {
     store: createCalendarSourceStore(),
   );
 
+  // Theme preference: follows the OS by default, cycleable from the dial
+  // toolbar, persisted as a device-local pref (never synced user data).
+  final PrefsStore _prefs = createPrefsStore();
+  ThemeMode _themeMode = ThemeMode.system;
+
   @override
   void initState() {
     super.initState();
     _scheduler.reschedule();
+    _prefs.read('theme_mode').then((v) {
+      final mode = switch (v) {
+        'light' => ThemeMode.light,
+        'dark' => ThemeMode.dark,
+        _ => ThemeMode.system,
+      };
+      if (mode != _themeMode && mounted) setState(() => _themeMode = mode);
+    });
+  }
+
+  void _cycleTheme() {
+    final next = switch (_themeMode) {
+      ThemeMode.system => ThemeMode.light,
+      ThemeMode.light => ThemeMode.dark,
+      ThemeMode.dark => ThemeMode.system,
+    };
+    setState(() => _themeMode = next);
+    _prefs.write('theme_mode', next.name);
   }
 
   @override
@@ -67,16 +92,16 @@ class _DayDialAppState extends State<DayDialApp> {
       title: 'Day-Dial',
       debugShowCheckedModeBanner: false,
       navigatorKey: _navigatorKey,
-      theme: ThemeData.dark(useMaterial3: true).copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0A0D18),
-        // Bundled Roboto (see pubspec) — no CDN font fetch, works offline.
-        textTheme: ThemeData.dark().textTheme.apply(fontFamily: 'Roboto'),
-      ),
+      theme: dayDialLight(),
+      darkTheme: dayDialDark(),
+      themeMode: _themeMode,
       home: DialScreen(
         repository: widget.repository,
         agentHost: _agent,
         calendarService: _calendar,
         onDayChanged: _scheduler.reschedule,
+        themeMode: _themeMode,
+        onCycleTheme: _cycleTheme,
       ),
     );
   }

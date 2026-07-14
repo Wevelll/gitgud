@@ -1,6 +1,8 @@
 import 'package:day_dial_core/day_dial_core.dart';
 import 'package:flutter/material.dart';
 
+import '../theme.dart';
+
 import '../painters/dial_painter.dart' show parseHexColor;
 
 /// A session-by-session look at past days: pick a date, see what was actually
@@ -15,7 +17,6 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  static const _panel = Color(0xFF0E1322);
   static const _daysBack = 14;
   static const _weekday = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -57,9 +58,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                   child: Text(
                     '${_selected.iso} · ${formatDuration(tracked)} tracked',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.6),
-                    ),
+                    style: TextStyle(color: context.inkAlpha(0.6)),
                   ),
                 ),
                 Expanded(
@@ -99,7 +98,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         width: 52,
         margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFF2E8B8B) : _panel,
+          color: selected ? const Color(0xFF2E8B8B) : context.panel,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
@@ -111,7 +110,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 fontSize: 11,
                 color: selected
                     ? const Color(0xFF04140F)
-                    : Colors.white.withValues(alpha: 0.5),
+                    : context.inkAlpha(0.5),
               ),
             ),
             const SizedBox(height: 2),
@@ -120,7 +119,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               style: TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.w700,
-                color: selected ? const Color(0xFF04140F) : Colors.white,
+                color: selected ? const Color(0xFF04140F) : context.ink,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
@@ -136,7 +135,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         padding: const EdgeInsets.all(24),
         child: Text(
           'Nothing was tracked on this day.',
-          style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+          style: TextStyle(color: context.inkAlpha(0.5)),
         ),
       ),
     );
@@ -151,7 +150,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: _panel,
+        color: context.panel,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
@@ -174,7 +173,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   range,
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.white.withValues(alpha: 0.5),
+                    color: context.inkAlpha(0.5),
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),

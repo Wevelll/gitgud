@@ -1,6 +1,8 @@
 import 'package:day_dial_core/day_dial_core.dart';
 import 'package:flutter/material.dart';
 
+import '../theme.dart';
+
 import '../painters/dial_painter.dart' show parseHexColor;
 
 /// Manages day templates (SPEC §2.4): create by block durations, assign
@@ -166,7 +168,7 @@ class _TemplatesScreenState extends State<TemplatesScreen> {
                 for (final s in p.segments)
                   '${s.name} ${formatDuration(s.durationMin)}',
               ].join(' · '),
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+              style: TextStyle(color: context.inkAlpha(0.5)),
             ),
             const SizedBox(height: 10),
             Row(
@@ -176,7 +178,7 @@ class _TemplatesScreenState extends State<TemplatesScreen> {
                   style: TextStyle(
                     fontSize: 10,
                     letterSpacing: 1.5,
-                    color: Colors.white.withValues(alpha: 0.45),
+                    color: context.inkAlpha(0.45),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -205,14 +207,12 @@ class _TemplatesScreenState extends State<TemplatesScreen> {
       customBorder: const CircleBorder(),
       child: CircleAvatar(
         radius: 13,
-        backgroundColor: on
-            ? const Color(0xFF3E7CB1)
-            : Colors.white.withValues(alpha: 0.08),
+        backgroundColor: on ? const Color(0xFF3E7CB1) : context.inkAlpha(0.08),
         child: Text(
           _dayLabels[isoWeekday - 1],
           style: TextStyle(
             fontSize: 11,
-            color: on ? Colors.white : Colors.white.withValues(alpha: 0.5),
+            color: on ? context.ink : context.inkAlpha(0.5),
           ),
         ),
       ),

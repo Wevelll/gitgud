@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:day_dial_core/day_dial_core.dart';
 import 'package:flutter/material.dart';
 
+import '../theme.dart';
+
 import '../painters/dial_painter.dart' show parseHexColor;
 import 'history_screen.dart';
 
@@ -23,8 +25,6 @@ class StatsScreen extends StatefulWidget {
 
 class _StatsScreenState extends State<StatsScreen> {
   StatsRange _range = StatsRange.day;
-
-  static const _panel = Color(0xFF0E1322);
 
   int _spanDays(StatsRange r) => switch (r) {
     StatsRange.day => 0,
@@ -121,7 +121,7 @@ class _StatsScreenState extends State<StatsScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _panel,
+        color: context.panel,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -144,7 +144,7 @@ class _StatsScreenState extends State<StatsScreen> {
           style: TextStyle(
             fontSize: 10,
             letterSpacing: 1.5,
-            color: Colors.white.withValues(alpha: 0.45),
+            color: context.inkAlpha(0.45),
           ),
         ),
         const SizedBox(height: 4),
@@ -153,7 +153,7 @@ class _StatsScreenState extends State<StatsScreen> {
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w700,
-            color: color ?? Colors.white,
+            color: color ?? context.ink,
             fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
@@ -165,13 +165,13 @@ class _StatsScreenState extends State<StatsScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: _panel,
+        color: context.panel,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Text(
         'Nothing tracked in this range yet.\n'
         'Use Start on the dial to time a block, and it shows up here.',
-        style: TextStyle(color: Colors.white.withValues(alpha: 0.55)),
+        style: TextStyle(color: context.inkAlpha(0.55)),
       ),
     );
   }
@@ -182,7 +182,7 @@ class _StatsScreenState extends State<StatsScreen> {
       margin: const EdgeInsets.only(top: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _panel,
+        color: context.panel,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -208,12 +208,7 @@ class _StatsScreenState extends State<StatsScreen> {
           const SizedBox(height: 10),
           _barRow('Tracked', v.actualMin, maxMin, color),
           const SizedBox(height: 6),
-          _barRow(
-            'Planned',
-            v.plannedMin,
-            maxMin,
-            Colors.white.withValues(alpha: 0.28),
-          ),
+          _barRow('Planned', v.plannedMin, maxMin, context.inkAlpha(0.28)),
         ],
       ),
     );
@@ -226,17 +221,14 @@ class _StatsScreenState extends State<StatsScreen> {
           width: 52,
           child: Text(
             label,
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.white.withValues(alpha: 0.45),
-            ),
+            style: TextStyle(fontSize: 11, color: context.inkAlpha(0.45)),
           ),
         ),
         Expanded(
           child: Container(
             height: 9,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.06),
+              color: context.inkAlpha(0.06),
               borderRadius: BorderRadius.circular(5),
             ),
             child: FractionallySizedBox(
@@ -272,7 +264,7 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 
   Color _deltaColor(int d) {
-    if (d == 0) return Colors.white.withValues(alpha: 0.5);
+    if (d == 0) return context.inkAlpha(0.5);
     // Over plan reads warm, under plan reads cool — informative, not a verdict.
     return d > 0 ? const Color(0xFFC98A3E) : const Color(0xFF5A9FB0);
   }

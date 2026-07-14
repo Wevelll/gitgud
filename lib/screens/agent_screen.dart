@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../theme.dart';
 import 'package:flutter/services.dart';
 
 import '../agent/activity_log.dart';
@@ -16,7 +18,6 @@ class AgentScreen extends StatefulWidget {
 }
 
 class _AgentScreenState extends State<AgentScreen> {
-  static const _panel = Color(0xFF0E1322);
   AgentHost get _host => widget.host;
 
   Future<void> _toggleServer() async {
@@ -71,7 +72,7 @@ class _AgentScreenState extends State<AgentScreen> {
   Widget _card({required Widget child}) => Container(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      color: _panel,
+      color: context.panel,
       borderRadius: BorderRadius.circular(14),
     ),
     child: child,
@@ -90,7 +91,7 @@ class _AgentScreenState extends State<AgentScreen> {
           'This device talks to your desktop hub instead of hosting its '
           'own MCP server. Run the Day-Dial desktop app to expose your day '
           'to agents.',
-          style: TextStyle(color: Colors.white.withValues(alpha: 0.55)),
+          style: TextStyle(color: context.inkAlpha(0.55)),
         ),
       ],
     );
@@ -106,7 +107,7 @@ class _AgentScreenState extends State<AgentScreen> {
             Icon(
               Icons.circle,
               size: 12,
-              color: running ? const Color(0xFF6FA85B) : Colors.white24,
+              color: running ? const Color(0xFF6FA85B) : context.inkAlpha(0.24),
             ),
             const SizedBox(width: 8),
             Text(
@@ -123,10 +124,7 @@ class _AgentScreenState extends State<AgentScreen> {
         const SizedBox(height: 6),
         Text(
           'Bound to 127.0.0.1 — pair a client with the token below.',
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.white.withValues(alpha: 0.5),
-          ),
+          style: TextStyle(fontSize: 12, color: context.inkAlpha(0.5)),
         ),
         if (running) ...[
           const SizedBox(height: 12),
@@ -145,10 +143,7 @@ class _AgentScreenState extends State<AgentScreen> {
           width: 74,
           child: Text(
             label,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.white.withValues(alpha: 0.5),
-            ),
+            style: TextStyle(fontSize: 12, color: context.inkAlpha(0.5)),
           ),
         ),
         Expanded(
@@ -180,7 +175,7 @@ class _AgentScreenState extends State<AgentScreen> {
           style: TextStyle(
             fontSize: 11,
             letterSpacing: 1.5,
-            color: Colors.white.withValues(alpha: 0.45),
+            color: context.inkAlpha(0.45),
           ),
         ),
         const SizedBox(height: 10),
@@ -202,10 +197,7 @@ class _AgentScreenState extends State<AgentScreen> {
         const SizedBox(height: 6),
         Text(
           'Deleting a block always asks, whatever the setting.',
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.white.withValues(alpha: 0.5),
-          ),
+          style: TextStyle(fontSize: 12, color: context.inkAlpha(0.5)),
         ),
       ],
     );
@@ -220,7 +212,7 @@ class _AgentScreenState extends State<AgentScreen> {
           style: TextStyle(
             fontSize: 11,
             letterSpacing: 1.5,
-            color: Colors.white.withValues(alpha: 0.45),
+            color: context.inkAlpha(0.45),
           ),
         ),
         TextButton(
@@ -241,7 +233,7 @@ class _AgentScreenState extends State<AgentScreen> {
             child: Text(
               'No agent activity yet. When a paired agent adds or changes '
               'something, it shows here.',
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+              style: TextStyle(color: context.inkAlpha(0.5)),
             ),
           );
         }
@@ -260,7 +252,7 @@ class _AgentScreenState extends State<AgentScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: _panel,
+        color: context.panel,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(

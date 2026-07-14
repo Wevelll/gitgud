@@ -4,6 +4,8 @@ import 'dart:collection';
 import 'package:day_dial_core/day_dial_core.dart';
 import 'package:flutter/material.dart';
 
+import '../theme.dart';
+
 import '../agent/agent_host.dart';
 import '../calendar/calendar_service.dart';
 import '../painters/dial_painter.dart';
@@ -26,6 +28,8 @@ class DialScreen extends StatefulWidget {
     required this.agentHost,
     this.calendarService,
     this.onDayChanged,
+    this.themeMode = ThemeMode.system,
+    this.onCycleTheme,
   });
 
   final DayRepository repository;
@@ -38,6 +42,11 @@ class DialScreen extends StatefulWidget {
   /// Called after an edit that changes the day's block boundaries, so the host
   /// can reschedule transition notifications. Optional (tests omit it).
   final VoidCallback? onDayChanged;
+
+  /// Current theme preference + the toolbar cycle action (system→light→dark).
+  /// Optional: tests and embeddings without theming omit them.
+  final ThemeMode themeMode;
+  final VoidCallback? onCycleTheme;
 
   @override
   State<DialScreen> createState() => _DialScreenState();
@@ -585,7 +594,7 @@ class _DialScreenState extends State<DialScreen> {
                     style: TextStyle(
                       fontSize: 11,
                       letterSpacing: 2,
-                      color: Colors.white.withValues(alpha: 0.45),
+                      color: context.inkAlpha(0.45),
                     ),
                   ),
                   Text(
@@ -614,6 +623,21 @@ class _DialScreenState extends State<DialScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
+            if (widget.onCycleTheme != null)
+              IconButton(
+                tooltip: switch (widget.themeMode) {
+                  ThemeMode.system => 'Theme: follow system',
+                  ThemeMode.light => 'Theme: light',
+                  ThemeMode.dark => 'Theme: dark',
+                },
+                visualDensity: VisualDensity.compact,
+                onPressed: widget.onCycleTheme,
+                icon: Icon(switch (widget.themeMode) {
+                  ThemeMode.system => Icons.brightness_auto_outlined,
+                  ThemeMode.light => Icons.light_mode_outlined,
+                  ThemeMode.dark => Icons.dark_mode_outlined,
+                }),
+              ),
             IconButton(
               tooltip: 'Day templates',
               visualDensity: VisualDensity.compact,
@@ -655,7 +679,7 @@ class _DialScreenState extends State<DialScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF0E1322),
+        color: context.panel,
         borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
@@ -668,6 +692,7 @@ class _DialScreenState extends State<DialScreen> {
             actuals: _actualArcs(),
             overlay: _overlayArcs(),
             subBlocks: _subBlocks,
+            palette: context.isDarkMode ? DialPalette.dark : DialPalette.light,
             onSegmentTapped: (id) => setState(() => _selectedId = id),
           ),
           _allDayBar(),
@@ -724,7 +749,7 @@ class _DialScreenState extends State<DialScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF0E1322),
+        color: context.panel,
         borderRadius: BorderRadius.circular(12),
         border: tracking
             ? Border.all(
@@ -758,7 +783,7 @@ class _DialScreenState extends State<DialScreen> {
                       Text(
                         _mmss(_elapsed),
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.6),
+                          color: context.inkAlpha(0.6),
                           fontFeatures: const [FontFeature.tabularFigures()],
                         ),
                       ),
@@ -767,9 +792,7 @@ class _DialScreenState extends State<DialScreen> {
                 : Text(
                     'Track time for “${cur.name}”',
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.7),
-                    ),
+                    style: TextStyle(color: context.inkAlpha(0.7)),
                   ),
           ),
           const SizedBox(width: 8),
@@ -887,7 +910,7 @@ class _DialScreenState extends State<DialScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF0E1322),
+        color: context.panel,
         borderRadius: BorderRadius.circular(12),
       ),
       child: id == null
@@ -897,9 +920,7 @@ class _DialScreenState extends State<DialScreen> {
                 Expanded(
                   child: Text(
                     'Tap a wedge to edit it',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.45),
-                    ),
+                    style: TextStyle(color: context.inkAlpha(0.45)),
                   ),
                 ),
                 TextButton.icon(
@@ -934,7 +955,7 @@ class _DialScreenState extends State<DialScreen> {
                                 '${formatMinuteOfDay(seg.endMin)} · '
                                 '${formatDuration(seg.durationMin)}',
                                 style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.45),
+                                  color: context.inkAlpha(0.45),
                                   fontFeatures: const [
                                     FontFeature.tabularFigures(),
                                   ],
@@ -990,7 +1011,7 @@ class _DialScreenState extends State<DialScreen> {
               style: TextStyle(
                 fontSize: 10,
                 letterSpacing: 1.5,
-                color: Colors.white.withValues(alpha: 0.45),
+                color: context.inkAlpha(0.45),
               ),
             ),
             TextButton.icon(
@@ -1005,10 +1026,7 @@ class _DialScreenState extends State<DialScreen> {
             padding: const EdgeInsets.only(bottom: 4),
             child: Text(
               'No detail yet — split this block into tasks',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.45),
-                fontSize: 12,
-              ),
+              style: TextStyle(color: context.inkAlpha(0.45), fontSize: 12),
             ),
           ),
         for (final sub in subs) _subBlockRow(sub),
@@ -1034,7 +1052,7 @@ class _DialScreenState extends State<DialScreen> {
           Text(
             '${formatMinuteOfDay(sub.startMin)}–${formatMinuteOfDay(sub.endMin)}',
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.45),
+              color: context.inkAlpha(0.45),
               fontSize: 12,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
@@ -1063,7 +1081,7 @@ class _DialScreenState extends State<DialScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF0E1322),
+        color: context.panel,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -1077,7 +1095,7 @@ class _DialScreenState extends State<DialScreen> {
                 style: TextStyle(
                   fontSize: 11,
                   letterSpacing: 2,
-                  color: Colors.white.withValues(alpha: 0.45),
+                  color: context.inkAlpha(0.45),
                 ),
               ),
               InkWell(
@@ -1094,7 +1112,7 @@ class _DialScreenState extends State<DialScreen> {
           if (counts.isEmpty)
             Text(
               'No habits yet — add one with +',
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.45)),
+              style: TextStyle(color: context.inkAlpha(0.45)),
             ),
           for (final c in counts) _habitRow(c),
         ],
@@ -1126,7 +1144,7 @@ class _DialScreenState extends State<DialScreen> {
               fontFeatures: const [FontFeature.tabularFigures()],
               color: c.targetReached
                   ? (bad ? const Color(0xFFB5624F) : const Color(0xFF6FA85B))
-                  : Colors.white,
+                  : context.ink,
             ),
           ),
           const SizedBox(width: 4),
@@ -1151,7 +1169,7 @@ class _DialScreenState extends State<DialScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF0E1322),
+        color: context.panel,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -1165,7 +1183,7 @@ class _DialScreenState extends State<DialScreen> {
                 style: TextStyle(
                   fontSize: 11,
                   letterSpacing: 2,
-                  color: Colors.white.withValues(alpha: 0.45),
+                  color: context.inkAlpha(0.45),
                 ),
               ),
               InkWell(
@@ -1182,7 +1200,7 @@ class _DialScreenState extends State<DialScreen> {
           if (tray.isEmpty)
             Text(
               'Nothing due today',
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.45)),
+              style: TextStyle(color: context.inkAlpha(0.45)),
             ),
           for (final item in tray)
             Row(
@@ -1210,8 +1228,8 @@ class _DialScreenState extends State<DialScreen> {
                                     ? TextDecoration.lineThrough
                                     : null,
                                 color: item.doneToday
-                                    ? Colors.white.withValues(alpha: 0.4)
-                                    : Colors.white,
+                                    ? context.inkAlpha(0.4)
+                                    : context.ink,
                               ),
                             ),
                           ),
@@ -1225,7 +1243,7 @@ class _DialScreenState extends State<DialScreen> {
                   icon: Icon(
                     Icons.more_vert,
                     size: 18,
-                    color: Colors.white.withValues(alpha: 0.5),
+                    color: context.inkAlpha(0.5),
                   ),
                   onSelected: (v) {
                     switch (v) {
@@ -1366,7 +1384,7 @@ class _ColorSwatches extends StatelessWidget {
                 color: parseHexColor(hex),
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: hex == selected ? Colors.white : Colors.transparent,
+                  color: hex == selected ? context.ink : Colors.transparent,
                   width: 2,
                 ),
               ),

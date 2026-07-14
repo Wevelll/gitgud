@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:day_dial_core/day_dial_core.dart';
 import 'package:flutter/material.dart';
 
+import '../theme.dart';
+
 import '../painters/dial_painter.dart' show parseHexColor;
 
 /// A focus timer (SPEC §12.6): pick a length, run a countdown bound to the
@@ -124,7 +126,7 @@ class _FocusScreenState extends State<FocusScreen> {
                     style: TextStyle(
                       fontSize: 11,
                       letterSpacing: 2,
-                      color: Colors.white.withValues(alpha: 0.45),
+                      color: context.inkAlpha(0.45),
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -186,7 +188,7 @@ class _FocusScreenState extends State<FocusScreen> {
     LinearProgressIndicator(
       value: _minutes == 0 ? 0 : 1 - (_remaining / (_minutes * 60)),
       color: color,
-      backgroundColor: Colors.white.withValues(alpha: 0.08),
+      backgroundColor: context.inkAlpha(0.08),
     ),
     const SizedBox(height: 28),
     FilledButton.tonal(

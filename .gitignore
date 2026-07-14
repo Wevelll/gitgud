@@ -18,3 +18,7 @@ test/failures/
 
 # Local scratch
 *.log
+
+# Icon pipeline intermediates (regenerate via tool/icons)
+tool/icons/out/
+tool/icons/node_modules/

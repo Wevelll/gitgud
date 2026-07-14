@@ -9,8 +9,13 @@ McpServer buildServer() {
     profiles: [defaultWeekdayProfile()],
     clock: () => DateTime(2026, 7, 3, 7, 30),
   );
-  return McpServer(DayDialTools(repo, const AllowAllConsent(),
-      clock: () => DateTime(2026, 7, 3, 7, 30)));
+  return McpServer(
+    DayDialTools(
+      repo,
+      const AllowAllConsent(),
+      clock: () => DateTime(2026, 7, 3, 7, 30),
+    ),
+  );
 }
 
 /// POSTs [payload] to [uri], returning (status, decoded-json-or-null).
@@ -39,14 +44,16 @@ Future<(int, Object?)> post(
   }
 }
 
-Map<String, Object?> rpc(int id, String method,
-        [Map<String, Object?>? params]) =>
-    {
-      'jsonrpc': '2.0',
-      'id': id,
-      'method': method,
-      if (params != null) 'params': params
-    };
+Map<String, Object?> rpc(
+  int id,
+  String method, [
+  Map<String, Object?>? params,
+]) => {
+  'jsonrpc': '2.0',
+  'id': id,
+  'method': method,
+  if (params != null) 'params': params,
+};
 
 void main() {
   group('Streamable HTTP transport', () {
@@ -69,8 +76,10 @@ void main() {
       server = McpHttpServer(buildServer());
       uri = await server.start();
 
-      final (status, body) =
-          await post(uri, rpc(2, 'tools/call', {'name': 'get_current_block'}));
+      final (status, body) = await post(
+        uri,
+        rpc(2, 'tools/call', {'name': 'get_current_block'}),
+      );
       expect(status, 200);
       final result = ((body! as Map)['result'] as Map);
       final structured = (result['structuredContent'] as Map)['result'] as Map;
@@ -81,8 +90,11 @@ void main() {
       server = McpHttpServer(buildServer());
       uri = await server.start();
 
-      final (status, _) = await post(uri, rpc(3, 'initialize'),
-          headers: {'origin': 'http://evil.example.com'});
+      final (status, _) = await post(
+        uri,
+        rpc(3, 'initialize'),
+        headers: {'origin': 'http://evil.example.com'},
+      );
       expect(status, HttpStatus.forbidden);
     });
 
@@ -90,8 +102,11 @@ void main() {
       server = McpHttpServer(buildServer());
       uri = await server.start();
 
-      final (status, _) = await post(uri, rpc(4, 'ping'),
-          headers: {'origin': 'http://localhost:5173'});
+      final (status, _) = await post(
+        uri,
+        rpc(4, 'ping'),
+        headers: {'origin': 'http://localhost:5173'},
+      );
       expect(status, 200);
     });
 
@@ -102,12 +117,18 @@ void main() {
       final (noTok, _) = await post(uri, rpc(5, 'ping'));
       expect(noTok, HttpStatus.unauthorized);
 
-      final (badTok, _) = await post(uri, rpc(6, 'ping'),
-          headers: {'authorization': 'Bearer nope'});
+      final (badTok, _) = await post(
+        uri,
+        rpc(6, 'ping'),
+        headers: {'authorization': 'Bearer nope'},
+      );
       expect(badTok, HttpStatus.unauthorized);
 
-      final (goodTok, body) = await post(uri, rpc(7, 'ping'),
-          headers: {'authorization': 'Bearer sekret'});
+      final (goodTok, body) = await post(
+        uri,
+        rpc(7, 'ping'),
+        headers: {'authorization': 'Bearer sekret'},
+      );
       expect(goodTok, 200);
       expect((body! as Map)['result'], isNotNull);
     });
@@ -117,7 +138,9 @@ void main() {
       uri = await server.start();
 
       final (status, _) = await post(
-          uri.replace(queryParameters: {'token': 'sekret'}), rpc(8, 'ping'));
+        uri.replace(queryParameters: {'token': 'sekret'}),
+        rpc(8, 'ping'),
+      );
       expect(status, 200);
     });
 
@@ -125,8 +148,10 @@ void main() {
       server = McpHttpServer(buildServer());
       uri = await server.start();
 
-      final (status, body) = await post(
-          uri, {'jsonrpc': '2.0', 'method': 'notifications/initialized'});
+      final (status, body) = await post(uri, {
+        'jsonrpc': '2.0',
+        'method': 'notifications/initialized',
+      });
       expect(status, HttpStatus.accepted);
       expect(body, isNull);
     });

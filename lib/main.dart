@@ -44,8 +44,9 @@ class _DayDialAppState extends State<DayDialApp> {
   // platform source store (a JSON file on desktop; session-only on web); the
   // dial loads and refreshes them on start. Manage them from the Calendars
   // screen.
-  final CalendarService _calendar =
-      CalendarService(store: createCalendarSourceStore());
+  final CalendarService _calendar = CalendarService(
+    store: createCalendarSourceStore(),
+  );
 
   @override
   void initState() {

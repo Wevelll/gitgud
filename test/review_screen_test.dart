@@ -32,9 +32,19 @@ void main() {
     // A tracked Deep work actual so the category section has content.
     repo.logActual(
       category: 'Deep work',
-      startTs: DateTime.utc(today.year, today.month, today.day, 9).toIso8601String(),
-      endTs:
-          DateTime.utc(today.year, today.month, today.day, 10, 30).toIso8601String(),
+      startTs: DateTime.utc(
+        today.year,
+        today.month,
+        today.day,
+        9,
+      ).toIso8601String(),
+      endTs: DateTime.utc(
+        today.year,
+        today.month,
+        today.day,
+        10,
+        30,
+      ).toIso8601String(),
     );
 
     await tester.pumpWidget(MaterialApp(home: ReviewScreen(repository: repo)));
@@ -61,31 +71,46 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('exporting logs builds CSV content and hands it to the exporter', (
-    tester,
-  ) async {
-    final repo = testRepository();
-    final today = CivilDate.fromDateTime(DateTime.now());
-    repo.logActual(
-      category: 'Deep work',
-      startTs: DateTime.utc(today.year, today.month, today.day, 9).toIso8601String(),
-      endTs:
-          DateTime.utc(today.year, today.month, today.day, 10).toIso8601String(),
-    );
-    final fake = _FakeExporter();
+  testWidgets(
+    'exporting logs builds CSV content and hands it to the exporter',
+    (tester) async {
+      final repo = testRepository();
+      final today = CivilDate.fromDateTime(DateTime.now());
+      repo.logActual(
+        category: 'Deep work',
+        startTs: DateTime.utc(
+          today.year,
+          today.month,
+          today.day,
+          9,
+        ).toIso8601String(),
+        endTs: DateTime.utc(
+          today.year,
+          today.month,
+          today.day,
+          10,
+        ).toIso8601String(),
+      );
+      final fake = _FakeExporter();
 
-    await tester.pumpWidget(
-      MaterialApp(home: ReviewScreen(repository: repo, exporter: fake)),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ReviewScreen(repository: repo, exporter: fake),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    await tester.scrollUntilVisible(find.text('Logs CSV'), 200);
-    await tester.tap(find.text('Logs CSV'));
-    await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.text('Logs CSV'), 200);
+      await tester.tap(find.text('Logs CSV'));
+      await tester.pumpAndSettle();
 
-    expect(fake.filename, endsWith('.csv'));
-    expect(fake.contents, contains('date,start,end,durationMin'));
-    expect(fake.contents, contains('Deep work'));
-    expect(find.textContaining('Saved'), findsOneWidget); // confirmation toast
-  });
+      expect(fake.filename, endsWith('.csv'));
+      expect(fake.contents, contains('date,start,end,durationMin'));
+      expect(fake.contents, contains('Deep work'));
+      expect(
+        find.textContaining('Saved'),
+        findsOneWidget,
+      ); // confirmation toast
+    },
+  );
 }

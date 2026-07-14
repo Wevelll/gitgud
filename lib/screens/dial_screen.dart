@@ -700,8 +700,9 @@ class _DialScreenState extends State<DialScreen> {
                 ).withValues(alpha: 0.22),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: parseHexColor(service.colorForSource(e.sourceId))
-                      .withValues(alpha: 0.6),
+                  color: parseHexColor(
+                    service.colorForSource(e.sourceId),
+                  ).withValues(alpha: 0.6),
                 ),
               ),
               child: Row(
@@ -709,10 +710,7 @@ class _DialScreenState extends State<DialScreen> {
                 children: [
                   const Icon(Icons.event, size: 12),
                   const SizedBox(width: 4),
-                  Text(
-                    e.title,
-                    style: const TextStyle(fontSize: 12),
-                  ),
+                  Text(e.title, style: const TextStyle(fontSize: 12)),
                 ],
               ),
             ),

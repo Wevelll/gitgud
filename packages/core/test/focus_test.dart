@@ -17,8 +17,7 @@ void main() {
     });
 
     test('rejects an end before the start', () {
-      const s = FocusSession(
-          category: 'x', startTs: '2026-07-07T09:00:00Z');
+      const s = FocusSession(category: 'x', startTs: '2026-07-07T09:00:00Z');
       expect(() => s.completeAt('2026-07-07T08:00:00Z'), throwsArgumentError);
     });
   });
@@ -27,8 +26,10 @@ void main() {
     test('classic 25/5 x4 has no trailing break', () {
       final plan = pomodoroPlan();
       expect(plan, hasLength(7)); // 4 work + 3 breaks
-      expect(plan.first,
-          const PomodoroInterval(phase: PomodoroPhase.work, startOffsetMin: 0, endOffsetMin: 25));
+      expect(
+          plan.first,
+          const PomodoroInterval(
+              phase: PomodoroPhase.work, startOffsetMin: 0, endOffsetMin: 25));
       expect(plan[1].phase, PomodoroPhase.shortBreak);
       expect(plan.last.phase, PomodoroPhase.work);
       expect(plan.last.endOffsetMin, 25 * 4 + 5 * 3);

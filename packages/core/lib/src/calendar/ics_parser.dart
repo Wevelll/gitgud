@@ -76,8 +76,8 @@ CalendarEvent? _buildEvent(
   bool allDay = startIsDate;
   final dtEnd = props['DTEND'];
   if (dtEnd != null) {
-    final endIsDate = (params['DTEND'] ?? '').contains('VALUE=DATE') &&
-        !dtEnd.contains('T');
+    final endIsDate =
+        (params['DTEND'] ?? '').contains('VALUE=DATE') && !dtEnd.contains('T');
     final end = _parseIcsTime(dtEnd);
     if (end == null) return null;
     endIso = end.iso;

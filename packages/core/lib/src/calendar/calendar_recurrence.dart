@@ -74,8 +74,7 @@ Iterable<CivilDate> _dates(
         n++;
       }
     case _Freq.weekly:
-      final days =
-          rule.byDay.isNotEmpty ? rule.byDay : {start.weekday};
+      final days = rule.byDay.isNotEmpty ? rule.byDay : {start.weekday};
       final startMonday = start.addDays(-(start.weekday - 1));
       var d = start;
       var n = 0;

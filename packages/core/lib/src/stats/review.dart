@@ -26,7 +26,8 @@ enum ReviewRange {
 
 /// A streak paired with the label it belongs to, for the review UI.
 class NamedStreak {
-  const NamedStreak({required this.id, required this.label, required this.streak});
+  const NamedStreak(
+      {required this.id, required this.label, required this.streak});
   final String id;
   final String label;
   final StreakInfo streak;

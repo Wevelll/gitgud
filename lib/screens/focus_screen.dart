@@ -33,8 +33,9 @@ class _FocusScreenState extends State<FocusScreen> {
   String? _startTs;
   int _loggedMinutes = 0;
 
-  late final Segment _segment =
-      widget.repository.activeProfile().segmentAt(_nowMin());
+  late final Segment _segment = widget.repository.activeProfile().segmentAt(
+    _nowMin(),
+  );
 
   static int _nowMin() {
     final n = DateTime.now();
@@ -70,8 +71,9 @@ class _FocusScreenState extends State<FocusScreen> {
       startTs: start,
       segmentId: _segment.id,
     );
-    final pending =
-        session.completeAt(DateTime.now().toUtc().toIso8601String());
+    final pending = session.completeAt(
+      DateTime.now().toUtc().toIso8601String(),
+    );
     widget.repository.logActual(
       category: pending.category,
       startTs: pending.startTs,
@@ -149,69 +151,69 @@ class _FocusScreenState extends State<FocusScreen> {
   }
 
   List<Widget> _idle(Color color) => [
-        Wrap(
-          alignment: WrapAlignment.center,
-          spacing: 8,
-          children: [
-            for (final m in _presets)
-              ChoiceChip(
-                label: Text('$m min'),
-                selected: _minutes == m,
-                onSelected: (_) => setState(() => _minutes = m),
-              ),
-          ],
-        ),
-        const SizedBox(height: 28),
-        FilledButton.icon(
-          onPressed: _start,
-          icon: const Icon(Icons.play_arrow),
-          label: Text('Start $_minutes-min focus'),
-        ),
-      ];
+    Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 8,
+      children: [
+        for (final m in _presets)
+          ChoiceChip(
+            label: Text('$m min'),
+            selected: _minutes == m,
+            onSelected: (_) => setState(() => _minutes = m),
+          ),
+      ],
+    ),
+    const SizedBox(height: 28),
+    FilledButton.icon(
+      onPressed: _start,
+      icon: const Icon(Icons.play_arrow),
+      label: Text('Start $_minutes-min focus'),
+    ),
+  ];
 
   List<Widget> _running(Color color) => [
-        Text(
-          _mmss(_remaining),
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 64,
-            fontWeight: FontWeight.w700,
-            color: color,
-            fontFeatures: const [FontFeature.tabularFigures()],
-          ),
-        ),
-        const SizedBox(height: 8),
-        LinearProgressIndicator(
-          value: _minutes == 0 ? 0 : 1 - (_remaining / (_minutes * 60)),
-          color: color,
-          backgroundColor: Colors.white.withValues(alpha: 0.08),
-        ),
-        const SizedBox(height: 28),
-        FilledButton.tonal(
-          onPressed: _finish,
-          child: const Text('Finish now (log it)'),
-        ),
-        const SizedBox(height: 8),
-        TextButton(onPressed: _cancel, child: const Text('Cancel')),
-      ];
+    Text(
+      _mmss(_remaining),
+      textAlign: TextAlign.center,
+      style: TextStyle(
+        fontSize: 64,
+        fontWeight: FontWeight.w700,
+        color: color,
+        fontFeatures: const [FontFeature.tabularFigures()],
+      ),
+    ),
+    const SizedBox(height: 8),
+    LinearProgressIndicator(
+      value: _minutes == 0 ? 0 : 1 - (_remaining / (_minutes * 60)),
+      color: color,
+      backgroundColor: Colors.white.withValues(alpha: 0.08),
+    ),
+    const SizedBox(height: 28),
+    FilledButton.tonal(
+      onPressed: _finish,
+      child: const Text('Finish now (log it)'),
+    ),
+    const SizedBox(height: 8),
+    TextButton(onPressed: _cancel, child: const Text('Cancel')),
+  ];
 
   List<Widget> _done(Color color) => [
-        Icon(Icons.check_circle, color: color, size: 48),
-        const SizedBox(height: 12),
-        Text(
-          'Logged ${formatDuration(_loggedMinutes)} of ${_segment.name}',
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 24),
-        FilledButton(
-          onPressed: () => setState(() => _phase = _Phase.idle),
-          child: const Text('Another'),
-        ),
-        const SizedBox(height: 8),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Done'),
-        ),
-      ];
+    Icon(Icons.check_circle, color: color, size: 48),
+    const SizedBox(height: 12),
+    Text(
+      'Logged ${formatDuration(_loggedMinutes)} of ${_segment.name}',
+      textAlign: TextAlign.center,
+      style: const TextStyle(fontWeight: FontWeight.w600),
+    ),
+    const SizedBox(height: 24),
+    FilledButton(
+      onPressed: () => setState(() => _phase = _Phase.idle),
+      child: const Text('Another'),
+    ),
+    const SizedBox(height: 8),
+    TextButton(
+      onPressed: () => Navigator.of(context).pop(),
+      child: const Text('Done'),
+    ),
+  ];
 }

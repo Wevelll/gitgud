@@ -126,8 +126,9 @@ DayOverlay overlayFor(CivilDate date, Iterable<CalendarEvent> events) {
   }
 
   final timed = _assignTracks(clipped);
-  final trackCount =
-      timed.isEmpty ? 0 : timed.map((e) => e.track).reduce((a, b) => a > b ? a : b) + 1;
+  final trackCount = timed.isEmpty
+      ? 0
+      : timed.map((e) => e.track).reduce((a, b) => a > b ? a : b) + 1;
   return DayOverlay(
       date: date, timed: timed, allDay: allDay, trackCount: trackCount);
 }

@@ -74,14 +74,14 @@ class McpServer {
   }
 
   List<Map<String, Object?>> _toolList() => [
-        for (final s in DayDialTools.specs)
-          {
-            'name': s.name,
-            'description': s.description,
-            'inputSchema': s.inputSchema,
-            if (s.destructive) 'annotations': {'destructiveHint': true},
-          }
-      ];
+    for (final s in DayDialTools.specs)
+      {
+        'name': s.name,
+        'description': s.description,
+        'inputSchema': s.inputSchema,
+        if (s.destructive) 'annotations': {'destructiveHint': true},
+      },
+  ];
 
   Future<Map<String, Object?>> _callTool(Map<String, Object?> params) async {
     final toolName = params['name'];
@@ -94,7 +94,7 @@ class McpServer {
       final result = await tools.call(toolName, args);
       return {
         'content': [
-          {'type': 'text', 'text': jsonEncode(result)}
+          {'type': 'text', 'text': jsonEncode(result)},
         ],
         'structuredContent': {'result': result},
         'isError': false,
@@ -113,18 +113,21 @@ class McpServer {
   }
 
   Map<String, Object?> _toolError(String message) => {
-        'content': [
-          {'type': 'text', 'text': message}
-        ],
-        'isError': true,
-      };
+    'content': [
+      {'type': 'text', 'text': message},
+    ],
+    'isError': true,
+  };
 
-  Map<String, Object?> _result(Object? id, Object? result) =>
-      {'jsonrpc': '2.0', 'id': id, 'result': result};
+  Map<String, Object?> _result(Object? id, Object? result) => {
+    'jsonrpc': '2.0',
+    'id': id,
+    'result': result,
+  };
 
   Map<String, Object?> _error(Object? id, int code, String message) => {
-        'jsonrpc': '2.0',
-        'id': id,
-        'error': {'code': code, 'message': message},
-      };
+    'jsonrpc': '2.0',
+    'id': id,
+    'error': {'code': code, 'message': message},
+  };
 }

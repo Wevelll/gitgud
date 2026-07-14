@@ -64,9 +64,17 @@ void main() {
           mode: DialMode.clock,
           overlay: const [
             OverlayArc(
-                startMin: 540, endMin: 600, track: 0, colorHex: '#7C7CA8'),
+              startMin: 540,
+              endMin: 600,
+              track: 0,
+              colorHex: '#7C7CA8',
+            ),
             OverlayArc(
-                startMin: 570, endMin: 630, track: 1, colorHex: '#C98A3E'),
+              startMin: 570,
+              endMin: 630,
+              track: 1,
+              colorHex: '#C98A3E',
+            ),
           ],
         ),
       ),
@@ -78,20 +86,22 @@ void main() {
   test('painter repaints when the overlay changes', () {
     final prof = testProfile(); // one instance: isolate the overlay comparison
     DialPainter painter(List<OverlayArc> overlay) => DialPainter(
-          profile: prof,
-          nowMin: 600,
-          mode: DialMode.clock,
-          palette: DialPalette.dark,
-          overlay: overlay,
-        );
+      profile: prof,
+      nowMin: 600,
+      mode: DialMode.clock,
+      palette: DialPalette.dark,
+      overlay: overlay,
+    );
     final base = painter(const [
       OverlayArc(startMin: 540, endMin: 600, track: 0, colorHex: '#7C7CA8'),
     ]);
     expect(base.shouldRepaint(painter(const [])), isTrue);
     expect(
-      base.shouldRepaint(painter(const [
-        OverlayArc(startMin: 540, endMin: 600, track: 0, colorHex: '#7C7CA8'),
-      ])),
+      base.shouldRepaint(
+        painter(const [
+          OverlayArc(startMin: 540, endMin: 600, track: 0, colorHex: '#7C7CA8'),
+        ]),
+      ),
       isFalse,
     );
   });

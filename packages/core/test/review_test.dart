@@ -23,7 +23,10 @@ void main() {
       );
 
   TaskCompletion done(String taskId, CivilDate date) => TaskCompletion(
-      id: '$taskId@${date.iso}', taskId: taskId, date: date, completedAt: '${date.iso}T09:00:00Z');
+      id: '$taskId@${date.iso}',
+      taskId: taskId,
+      date: date,
+      completedAt: '${date.iso}T09:00:00Z');
 
   test('ReviewRange date windows end at the reference day', () {
     expect(ReviewRange.day.datesEndingAt(asOf), [asOf]);

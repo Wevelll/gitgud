@@ -25,7 +25,8 @@ class CalendarEvent {
   })  : start = DateTime.parse(startTs),
         end = DateTime.parse(endTs) {
     if (end.isBefore(start)) {
-      throw ArgumentError('CalendarEvent end ($endTs) precedes start ($startTs)');
+      throw ArgumentError(
+          'CalendarEvent end ($endTs) precedes start ($startTs)');
     }
   }
 

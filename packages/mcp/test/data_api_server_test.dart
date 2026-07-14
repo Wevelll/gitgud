@@ -6,20 +6,22 @@ import 'package:day_dial_mcp/day_dial_mcp.dart';
 import 'package:test/test.dart';
 
 DayProfile weekday() => DayProfile.ring(
-      id: 'weekday',
-      name: 'Weekday',
-      isDefault: true,
-      segmentIds: const ['sleep', 'work'],
-      spans: const [
-        (startMin: 1380, name: 'Sleep', colorHex: '#4B4FA6'),
-        (startMin: 420, name: 'Work', colorHex: '#3E7CB1'),
-      ],
-    );
+  id: 'weekday',
+  name: 'Weekday',
+  isDefault: true,
+  segmentIds: const ['sleep', 'work'],
+  spans: const [
+    (startMin: 1380, name: 'Sleep', colorHex: '#4B4FA6'),
+    (startMin: 420, name: 'Work', colorHex: '#3E7CB1'),
+  ],
+);
 
 DataApiServer buildServer({String? token}) {
   final repo = InMemoryDayRepository(profiles: [weekday()]);
-  return DataApiServer(DayDialTools(repo, const AllowAllConsent()),
-      token: token);
+  return DataApiServer(
+    DayDialTools(repo, const AllowAllConsent()),
+    token: token,
+  );
 }
 
 Future<(int, Object?)> req(
@@ -77,7 +79,7 @@ void main() {
       method: 'POST',
       body: {
         'name': 'add_habit',
-        'arguments': {'label': 'Water', 'target': 8}
+        'arguments': {'label': 'Water', 'target': 8},
       },
     );
     expect(status, 200);
@@ -86,7 +88,8 @@ void main() {
     // The mutation is visible in a fresh snapshot.
     final (_, state) = await req(base.replace(path: '/state'));
     final snap = DaySnapshot.fromJson(
-        ((state! as Map)['state'] as Map).cast<String, Object?>());
+      ((state! as Map)['state'] as Map).cast<String, Object?>(),
+    );
     expect(snap.habits.single.label, 'Water');
   });
 
@@ -97,7 +100,8 @@ void main() {
     // Fetch, mutate the snapshot client-side, push it back.
     final (_, body) = await req(base.replace(path: '/state'));
     final snap = DaySnapshot.fromJson(
-        ((body! as Map)['state'] as Map).cast<String, Object?>());
+      ((body! as Map)['state'] as Map).cast<String, Object?>(),
+    );
     final edited = InMemoryDayRepository.fromSnapshot(snap)
       ..addHabit(label: 'Pushed', colorHex: '#000');
 
@@ -112,7 +116,8 @@ void main() {
     // Server now reflects the pushed state.
     final (_, after) = await req(base.replace(path: '/state'));
     final restored = DaySnapshot.fromJson(
-        ((after! as Map)['state'] as Map).cast<String, Object?>());
+      ((after! as Map)['state'] as Map).cast<String, Object?>(),
+    );
     expect(restored.habits.single.label, 'Pushed');
   });
 
@@ -124,7 +129,7 @@ void main() {
       method: 'POST',
       body: {
         'name': 'log_habit',
-        'arguments': {'id': 'nonexistent'}
+        'arguments': {'id': 'nonexistent'},
       },
     );
     expect(status, HttpStatus.badRequest);
@@ -135,15 +140,19 @@ void main() {
     server = buildServer(token: 'sekret');
     base = await server.start();
 
-    final (forbidden, _) = await req(base.replace(path: '/state'),
-        headers: {'origin': 'http://evil.example.com'});
+    final (forbidden, _) = await req(
+      base.replace(path: '/state'),
+      headers: {'origin': 'http://evil.example.com'},
+    );
     expect(forbidden, HttpStatus.forbidden);
 
     final (unauth, _) = await req(base.replace(path: '/state'));
     expect(unauth, HttpStatus.unauthorized);
 
-    final (ok, _) = await req(base.replace(path: '/state'),
-        headers: {'authorization': 'Bearer sekret'});
+    final (ok, _) = await req(
+      base.replace(path: '/state'),
+      headers: {'authorization': 'Bearer sekret'},
+    );
     expect(ok, 200);
   });
 }

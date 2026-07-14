@@ -32,12 +32,11 @@ class ToolSpec {
 Map<String, Object?> _schema(
   Map<String, Object?> properties, {
   List<String> required = const [],
-}) =>
-    {
-      'type': 'object',
-      'properties': properties,
-      if (required.isNotEmpty) 'required': required,
-    };
+}) => {
+  'type': 'object',
+  'properties': properties,
+  if (required.isNotEmpty) 'required': required,
+};
 
 const _timeArg = {
   'type': 'string',
@@ -58,8 +57,8 @@ class DayDialTools {
     this.consent, {
     DateTime Function()? clock,
     CalendarProvider? calendar,
-  })  : _clock = clock ?? DateTime.now,
-        _calendar = calendar;
+  }) : _clock = clock ?? DateTime.now,
+       _calendar = calendar;
 
   final DayRepository repo;
   final ConsentGate consent;
@@ -115,99 +114,103 @@ class DayDialTools {
     ToolSpec(
       name: 'add_block',
       description: 'Add a block to the active profile.',
-      inputSchema: _schema({
-        'name': {'type': 'string'},
-        'start': _timeArg,
-        'end': _timeArg,
-        'color': _colorArg,
-      }, required: [
-        'name',
-        'start',
-        'end'
-      ]),
+      inputSchema: _schema(
+        {
+          'name': {'type': 'string'},
+          'start': _timeArg,
+          'end': _timeArg,
+          'color': _colorArg,
+        },
+        required: ['name', 'start', 'end'],
+      ),
       mutates: true,
     ),
     ToolSpec(
       name: 'update_block',
       description: 'Move, resize, rename, or recolor a block.',
-      inputSchema: _schema({
-        'id': {'type': 'string'},
-        'name': {'type': 'string'},
-        'start': _timeArg,
-        'end': _timeArg,
-        'color': _colorArg,
-      }, required: [
-        'id'
-      ]),
+      inputSchema: _schema(
+        {
+          'id': {'type': 'string'},
+          'name': {'type': 'string'},
+          'start': _timeArg,
+          'end': _timeArg,
+          'color': _colorArg,
+        },
+        required: ['id'],
+      ),
       mutates: true,
     ),
     ToolSpec(
       name: 'delete_block',
       description: 'Delete a block; its span merges into a neighbor.',
-      inputSchema: _schema({
-        'id': {'type': 'string'},
-      }, required: [
-        'id'
-      ]),
+      inputSchema: _schema(
+        {
+          'id': {'type': 'string'},
+        },
+        required: ['id'],
+      ),
       mutates: true,
       destructive: true,
     ),
     ToolSpec(
       name: 'add_recurring_task',
       description: 'Add an untimed recurring task.',
-      inputSchema: _schema({
-        'label': {'type': 'string'},
-        'recurrence': {
-          'type': 'string',
-          'description':
-              'daily | weekly:1,3,5 | interval:N@YYYY-MM-DD | dates:YYYY-MM-DD,...',
+      inputSchema: _schema(
+        {
+          'label': {'type': 'string'},
+          'recurrence': {
+            'type': 'string',
+            'description':
+                'daily | weekly:1,3,5 | interval:N@YYYY-MM-DD | dates:YYYY-MM-DD,...',
+          },
+          'color': _colorArg,
         },
-        'color': _colorArg,
-      }, required: [
-        'label',
-        'recurrence'
-      ]),
+        required: ['label', 'recurrence'],
+      ),
       mutates: true,
     ),
     ToolSpec(
       name: 'complete_task',
       description: 'Mark a recurring task done on a date.',
-      inputSchema: _schema({
-        'id': {'type': 'string'},
-        'date': _dateArg,
-      }, required: [
-        'id'
-      ]),
+      inputSchema: _schema(
+        {
+          'id': {'type': 'string'},
+          'date': _dateArg,
+        },
+        required: ['id'],
+      ),
       mutates: true,
     ),
     ToolSpec(
       name: 'switch_profile',
       description: 'Make a profile the active day layout.',
-      inputSchema: _schema({
-        'profile': {'type': 'string'},
-      }, required: [
-        'profile'
-      ]),
+      inputSchema: _schema(
+        {
+          'profile': {'type': 'string'},
+        },
+        required: ['profile'],
+      ),
       mutates: true,
     ),
     ToolSpec(
       name: 'log_actual',
       description: 'Record what actually happened (append-only).',
-      inputSchema: _schema({
-        'category': {'type': 'string'},
-        'blockId': {'type': 'string'},
-        'start': {'type': 'string', 'description': 'ISO-8601 timestamp'},
-        'end': {'type': 'string', 'description': 'ISO-8601 timestamp'},
-        'note': {'type': 'string'},
-      }, required: [
-        'start',
-        'end'
-      ]),
+      inputSchema: _schema(
+        {
+          'category': {'type': 'string'},
+          'blockId': {'type': 'string'},
+          'start': {'type': 'string', 'description': 'ISO-8601 timestamp'},
+          'end': {'type': 'string', 'description': 'ISO-8601 timestamp'},
+          'note': {'type': 'string'},
+        },
+        required: ['start', 'end'],
+      ),
       mutates: true,
     ),
     ToolSpec(
       name: 'get_calendar_events',
-      description: 'Read-only calendar events overlaying a day (SPEC §12.1). '
+      description:
+          'Read-only calendar events overlaying a day (SPEC §12.1). '
           'Never segments; recurring events are expanded to instances.',
       inputSchema: _schema({'date': _dateArg}),
     ),
@@ -219,73 +222,81 @@ class DayDialTools {
     ToolSpec(
       name: 'add_habit',
       description: 'Create a countable habit (e.g. water, cigarettes).',
-      inputSchema: _schema({
-        'label': {'type': 'string'},
-        'polarity': {
-          'type': 'string',
-          'enum': ['good', 'bad'],
-          'description': 'good = build up, bad = cut down',
+      inputSchema: _schema(
+        {
+          'label': {'type': 'string'},
+          'polarity': {
+            'type': 'string',
+            'enum': ['good', 'bad'],
+            'description': 'good = build up, bad = cut down',
+          },
+          'target': {
+            'type': 'integer',
+            'description': 'Optional daily goal/cap',
+          },
+          'color': _colorArg,
         },
-        'target': {'type': 'integer', 'description': 'Optional daily goal/cap'},
-        'color': _colorArg,
-      }, required: [
-        'label'
-      ]),
+        required: ['label'],
+      ),
       mutates: true,
     ),
     ToolSpec(
       name: 'log_habit',
       description: 'Increment (or decrement) a habit\'s tally for a date.',
-      inputSchema: _schema({
-        'id': {'type': 'string'},
-        'date': _dateArg,
-        'delta': {
-          'type': 'integer',
-          'description': '+1 (default) adds an occurrence, -1 removes one',
+      inputSchema: _schema(
+        {
+          'id': {'type': 'string'},
+          'date': _dateArg,
+          'delta': {
+            'type': 'integer',
+            'description': '+1 (default) adds an occurrence, -1 removes one',
+          },
         },
-      }, required: [
-        'id'
-      ]),
+        required: ['id'],
+      ),
       mutates: true,
     ),
     ToolSpec(
       name: 'update_recurring_task',
       description: 'Edit a recurring task\'s label, recurrence, or color.',
-      inputSchema: _schema({
-        'id': {'type': 'string'},
-        'label': {'type': 'string'},
-        'recurrence': {
-          'type': 'string',
-          'description':
-              'daily | weekly:1,3,5 | interval:N@YYYY-MM-DD | dates:YYYY-MM-DD,...',
+      inputSchema: _schema(
+        {
+          'id': {'type': 'string'},
+          'label': {'type': 'string'},
+          'recurrence': {
+            'type': 'string',
+            'description':
+                'daily | weekly:1,3,5 | interval:N@YYYY-MM-DD | dates:YYYY-MM-DD,...',
+          },
+          'color': _colorArg,
         },
-        'color': _colorArg,
-      }, required: [
-        'id'
-      ]),
+        required: ['id'],
+      ),
       mutates: true,
     ),
     ToolSpec(
       name: 'set_task_archived',
-      description: 'Archive or un-archive a recurring task (hides it from the '
+      description:
+          'Archive or un-archive a recurring task (hides it from the '
           'tray, keeps its history).',
-      inputSchema: _schema({
-        'id': {'type': 'string'},
-        'archived': {'type': 'boolean'},
-      }, required: [
-        'id',
-        'archived'
-      ]),
+      inputSchema: _schema(
+        {
+          'id': {'type': 'string'},
+          'archived': {'type': 'boolean'},
+        },
+        required: ['id', 'archived'],
+      ),
       mutates: true,
     ),
     ToolSpec(
       name: 'delete_recurring_task',
       description: 'Permanently delete a recurring task and its completions.',
-      inputSchema: _schema({
-        'id': {'type': 'string'},
-      }, required: [
-        'id'
-      ]),
+      inputSchema: _schema(
+        {
+          'id': {'type': 'string'},
+        },
+        required: ['id'],
+      ),
       mutates: true,
       destructive: true,
     ),
@@ -301,64 +312,64 @@ class DayDialTools {
       name: 'add_sub_block',
       description:
           'Add a detail sub-block inside a block (must fit within it).',
-      inputSchema: _schema({
-        'parentId': {'type': 'string'},
-        'name': {'type': 'string'},
-        'start': _timeArg,
-        'end': _timeArg,
-        'color': _colorArg,
-      }, required: [
-        'parentId',
-        'name',
-        'start',
-        'end'
-      ]),
+      inputSchema: _schema(
+        {
+          'parentId': {'type': 'string'},
+          'name': {'type': 'string'},
+          'start': _timeArg,
+          'end': _timeArg,
+          'color': _colorArg,
+        },
+        required: ['parentId', 'name', 'start', 'end'],
+      ),
       mutates: true,
     ),
     ToolSpec(
       name: 'update_sub_block',
       description: 'Move, resize, rename, or recolor a detail sub-block.',
-      inputSchema: _schema({
-        'id': {'type': 'string'},
-        'name': {'type': 'string'},
-        'start': _timeArg,
-        'end': _timeArg,
-        'color': _colorArg,
-      }, required: [
-        'id'
-      ]),
+      inputSchema: _schema(
+        {
+          'id': {'type': 'string'},
+          'name': {'type': 'string'},
+          'start': _timeArg,
+          'end': _timeArg,
+          'color': _colorArg,
+        },
+        required: ['id'],
+      ),
       mutates: true,
     ),
     ToolSpec(
       name: 'delete_sub_block',
       description: 'Delete a detail sub-block.',
-      inputSchema: _schema({
-        'id': {'type': 'string'},
-      }, required: [
-        'id'
-      ]),
+      inputSchema: _schema(
+        {
+          'id': {'type': 'string'},
+        },
+        required: ['id'],
+      ),
       mutates: true,
       destructive: true,
     ),
   ];
 
   static ToolSpec _spec(String name) => specs.firstWhere(
-        (s) => s.name == name,
-        orElse: () => throw ArgumentError('Unknown tool "$name"'),
-      );
+    (s) => s.name == name,
+    orElse: () => throw ArgumentError('Unknown tool "$name"'),
+  );
 
   /// Invokes [tool] with [args], returning a JSON-ready result. Mutating tools
   /// require consent; a denied gate throws [ConsentDeniedException] and nothing
   /// is changed.
-  Future<Object?> call(String tool,
-      [Map<String, Object?> args = const {}]) async {
+  Future<Object?> call(
+    String tool, [
+    Map<String, Object?> args = const {},
+  ]) async {
     final spec = _spec(tool);
     if (spec.mutates) {
-      final granted = await consent.requestConsent(ToolCall(
-        tool: tool,
-        arguments: args,
-        destructive: spec.destructive,
-      ));
+      final granted = await consent.requestConsent(
+        ToolCall(tool: tool, arguments: args, destructive: spec.destructive),
+      );
       if (!granted) throw ConsentDeniedException(tool);
     }
 
@@ -469,7 +480,7 @@ class DayDialTools {
           'start': formatMinuteOfDay(u.segment.startMin),
           'end': formatMinuteOfDay(u.segment.endMin),
           'inMinutes': u.inMinutes,
-        }
+        },
     ];
   }
 
@@ -511,7 +522,7 @@ class DayDialTools {
             'plannedMin': v.plannedMin,
             'actualMin': v.actualMin,
             'deltaMin': v.deltaMin,
-          }
+          },
       ],
     };
   }
@@ -529,7 +540,7 @@ class DayDialTools {
           'allDay': e.allDay,
           'source': e.sourceId,
           'calendar': e.calendarName,
-        }
+        },
     ];
   }
 
@@ -661,9 +672,9 @@ class DayDialTools {
     final blockId = args['blockId'] as String?;
     if (blockId != null) {
       final seg = repo.activeProfile().segments.firstWhere(
-            (s) => s.id == blockId,
-            orElse: () => throw ArgumentError('No block "$blockId"'),
-          );
+        (s) => s.id == blockId,
+        orElse: () => throw ArgumentError('No block "$blockId"'),
+      );
       category = seg.name;
       segmentId = seg.id;
     } else {
@@ -697,7 +708,7 @@ class DayDialTools {
           'count': h.count,
           'target': h.target,
           'targetReached': h.targetReached,
-        }
+        },
     ];
   }
 
@@ -729,21 +740,18 @@ class DayDialTools {
     } else {
       repo.incrementHabit(id, date: date);
     }
-    return {
-      'id': id,
-      'count': habitCountOn(date, id, repo.habitEvents()),
-    };
+    return {'id': id, 'count': habitCountOn(date, id, repo.habitEvents())};
   }
 
   // ---- helpers --------------------------------------------------------------
 
   Map<String, Object?> _block(Segment s) => {
-        'id': s.id,
-        'name': s.name,
-        'color': s.colorHex,
-        'start': formatMinuteOfDay(s.startMin),
-        'end': formatMinuteOfDay(s.endMin),
-      };
+    'id': s.id,
+    'name': s.name,
+    'color': s.colorHex,
+    'start': formatMinuteOfDay(s.startMin),
+    'end': formatMinuteOfDay(s.endMin),
+  };
 
   List<Map<String, Object?>> _trayJson(CivilDate date) {
     final tray = trayFor(date, repo.tasks(), repo.completions());
@@ -754,7 +762,7 @@ class DayDialTools {
           'label': item.task.label,
           'recurrence': item.task.recurrence.encode(),
           'doneToday': item.doneToday,
-        }
+        },
     ];
   }
 

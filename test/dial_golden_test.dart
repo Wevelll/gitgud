@@ -141,11 +141,23 @@ void main() {
           mode: DialMode.clock,
           overlay: const [
             OverlayArc(
-                startMin: 540, endMin: 600, track: 0, colorHex: '#7C7CA8'),
+              startMin: 540,
+              endMin: 600,
+              track: 0,
+              colorHex: '#7C7CA8',
+            ),
             OverlayArc(
-                startMin: 570, endMin: 660, track: 1, colorHex: '#5A9FB0'),
+              startMin: 570,
+              endMin: 660,
+              track: 1,
+              colorHex: '#5A9FB0',
+            ),
             OverlayArc(
-                startMin: 780, endMin: 840, track: 0, colorHex: '#7C7CA8'),
+              startMin: 780,
+              endMin: 840,
+              track: 0,
+              colorHex: '#7C7CA8',
+            ),
           ],
         ),
       ),

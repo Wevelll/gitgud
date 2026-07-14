@@ -9,11 +9,15 @@ import '../protocol/mcp_server.dart';
 /// Contract: **stdout carries only JSON-RPC messages** (one compact JSON object
 /// per line). All logging must go to stderr, or it will corrupt the stream.
 /// Completes when stdin closes.
-Future<void> serveStdio(McpServer server,
-    {Stream<List<int>>? input, IOSink? output}) async {
+Future<void> serveStdio(
+  McpServer server, {
+  Stream<List<int>>? input,
+  IOSink? output,
+}) async {
   final out = output ?? stdout;
-  final lines =
-      (input ?? stdin).transform(utf8.decoder).transform(const LineSplitter());
+  final lines = (input ?? stdin)
+      .transform(utf8.decoder)
+      .transform(const LineSplitter());
 
   await for (final line in lines) {
     final trimmed = line.trim();
@@ -23,11 +27,13 @@ Future<void> serveStdio(McpServer server,
     try {
       request = (jsonDecode(trimmed) as Map).cast<String, Object?>();
     } catch (_) {
-      out.writeln(jsonEncode({
-        'jsonrpc': '2.0',
-        'id': null,
-        'error': {'code': -32700, 'message': 'Parse error'},
-      }));
+      out.writeln(
+        jsonEncode({
+          'jsonrpc': '2.0',
+          'id': null,
+          'error': {'code': -32700, 'message': 'Parse error'},
+        }),
+      );
       continue;
     }
 

@@ -14,7 +14,9 @@ class StreakInfo {
 
   @override
   bool operator ==(Object other) =>
-      other is StreakInfo && other.current == current && other.longest == longest;
+      other is StreakInfo &&
+      other.current == current &&
+      other.longest == longest;
 
   @override
   int get hashCode => Object.hash(current, longest);
@@ -100,7 +102,7 @@ StreakInfo _streak({
   required bool Function(CivilDate) succeeded,
 }) {
   var current = 0;
-  for (var d = asOf; ; d = d.addDays(-1)) {
+  for (var d = asOf;; d = d.addDays(-1)) {
     if (asOf.addDays(-lookbackDays).isAfter(d)) break;
     if (!isCandidate(d)) continue;
     if (succeeded(d)) {

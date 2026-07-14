@@ -4,7 +4,8 @@ import 'package:day_dial_core/day_dial_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-const _ics = 'BEGIN:VCALENDAR\r\n'
+const _ics =
+    'BEGIN:VCALENDAR\r\n'
     'BEGIN:VEVENT\r\n'
     'UID:e1\r\n'
     'SUMMARY:Standup\r\n'
@@ -27,7 +28,9 @@ void main() {
 
     await tester.enterText(find.byType(TextField).at(0), 'Work');
     await tester.enterText(
-        find.byType(TextField).at(1), 'https://example.com/work.ics');
+      find.byType(TextField).at(1),
+      'https://example.com/work.ics',
+    );
     await tester.tap(find.text('Add'));
     await tester.pumpAndSettle();
 

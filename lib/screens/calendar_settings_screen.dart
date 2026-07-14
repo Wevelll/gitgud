@@ -122,8 +122,9 @@ class _CalendarSettingsScreenState extends State<CalendarSettingsScreen> {
                     ),
                     child: Text(
                       'No calendars yet — add one with the button below.',
-                      style:
-                          TextStyle(color: Colors.white.withValues(alpha: 0.55)),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.55),
+                      ),
                     ),
                   )
                 else
@@ -159,8 +160,7 @@ class _CalendarSettingsScreenState extends State<CalendarSettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(s.name,
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(s.name, maxLines: 1, overflow: TextOverflow.ellipsis),
                 Text(
                   '${s.kind.name.toUpperCase()} · ${s.url ?? s.calId ?? ''}',
                   maxLines: 1,
@@ -173,10 +173,7 @@ class _CalendarSettingsScreenState extends State<CalendarSettingsScreen> {
               ],
             ),
           ),
-          Switch(
-            value: s.enabled,
-            onChanged: (v) => _toggle(s, v),
-          ),
+          Switch(value: s.enabled, onChanged: (v) => _toggle(s, v)),
           IconButton(
             tooltip: 'Remove',
             visualDensity: VisualDensity.compact,
@@ -266,9 +263,13 @@ class _AddSourceDialogState extends State<_AddSourceDialog> {
             SegmentedButton<CalendarSourceKind>(
               segments: const [
                 ButtonSegment(
-                    value: CalendarSourceKind.ics, label: Text('ICS')),
+                  value: CalendarSourceKind.ics,
+                  label: Text('ICS'),
+                ),
                 ButtonSegment(
-                    value: CalendarSourceKind.caldav, label: Text('CalDAV')),
+                  value: CalendarSourceKind.caldav,
+                  label: Text('CalDAV'),
+                ),
               ],
               selected: {_kind},
               showSelectedIcon: false,

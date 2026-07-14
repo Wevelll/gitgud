@@ -31,7 +31,10 @@ void main() {
       );
 
   HabitEvent ev(String habitId, CivilDate date) => HabitEvent(
-      id: '$habitId@${date.iso}', habitId: habitId, date: date, ts: '${date.iso}T10:00:00Z');
+      id: '$habitId@${date.iso}',
+      habitId: habitId,
+      date: date,
+      ts: '${date.iso}T10:00:00Z');
 
   group('taskStreak (daily)', () {
     final t = task('meds', const DailyRecurrence());

@@ -46,7 +46,8 @@ void main() {
 
   test('a missing file loads as an empty list, not an error', () async {
     final store = createCalendarSourceStore(
-      path: '${Directory.systemTemp.path}/daydial_nope_${DateTime.now().microsecondsSinceEpoch}.json',
+      path:
+          '${Directory.systemTemp.path}/daydial_nope_${DateTime.now().microsecondsSinceEpoch}.json',
     );
     expect(await store.load(), isEmpty);
   });

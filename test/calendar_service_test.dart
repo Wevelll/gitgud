@@ -2,7 +2,8 @@ import 'package:day_dial/calendar/calendar_service.dart';
 import 'package:day_dial_core/day_dial_core.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-const _ics = 'BEGIN:VCALENDAR\r\n'
+const _ics =
+    'BEGIN:VCALENDAR\r\n'
     'BEGIN:VEVENT\r\n'
     'UID:lunch\r\n'
     'SUMMARY:Lunch\r\n'
@@ -13,13 +14,13 @@ const _ics = 'BEGIN:VCALENDAR\r\n'
 
 void main() {
   CalendarSource src(String id, {bool enabled = true}) => CalendarSource(
-        id: id,
-        kind: CalendarSourceKind.ics,
-        name: id,
-        url: 'https://example.com/$id.ics',
-        colorHex: '#AABBCC',
-        enabled: enabled,
-      );
+    id: id,
+    kind: CalendarSourceKind.ics,
+    name: id,
+    url: 'https://example.com/$id.ics',
+    colorHex: '#AABBCC',
+    enabled: enabled,
+  );
 
   test('refresh parses fetched ICS into the provider', () async {
     final service = CalendarService(
@@ -46,7 +47,10 @@ void main() {
     final failed = await service.refresh();
     expect(failed, ['bad']);
     // The good source still made it through.
-    expect(service.provider.eventsOn(CivilDate.parse('2026-07-07')), hasLength(1));
+    expect(
+      service.provider.eventsOn(CivilDate.parse('2026-07-07')),
+      hasLength(1),
+    );
   });
 
   test('disabled sources are not fetched', () async {

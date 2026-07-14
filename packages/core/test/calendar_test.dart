@@ -23,15 +23,16 @@ void main() {
 
   group('CalendarEvent', () {
     test('duration and json round-trip', () {
-      final e = ev(
-          id: '1', start: '2026-07-07T09:00:00', end: '2026-07-07T10:30:00');
+      final e =
+          ev(id: '1', start: '2026-07-07T09:00:00', end: '2026-07-07T10:30:00');
       expect(e.durationMin, 90);
       expect(CalendarEvent.fromJson(e.toJson()), e);
     });
 
     test('rejects end before start', () {
       expect(
-        () => ev(id: '1', start: '2026-07-07T10:00:00', end: '2026-07-07T09:00:00'),
+        () => ev(
+            id: '1', start: '2026-07-07T10:00:00', end: '2026-07-07T09:00:00'),
         throwsArgumentError,
       );
     });
@@ -158,8 +159,10 @@ void main() {
       final out = expandRecurring(e,
           from: CivilDate.parse('2026-07-01'),
           to: CivilDate.parse('2026-07-31'));
-      expect(out.map((x) => x.startTs.substring(0, 10)),
-          ['2026-07-07', '2026-07-08']); // 07-09 excluded (after UNTIL midnight)
+      expect(out.map((x) => x.startTs.substring(0, 10)), [
+        '2026-07-07',
+        '2026-07-08'
+      ]); // 07-09 excluded (after UNTIL midnight)
     });
 
     test('monthly by day-of-month', () {

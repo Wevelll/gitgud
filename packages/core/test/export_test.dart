@@ -81,7 +81,8 @@ void main() {
           (name: 'Evening', colorHex: '#1', minutes: 60), // 00:00-01:00
           (name: 'Sleep', colorHex: '#2', minutes: 1380), // 01:00-24:00
         ],
-        firstStartMin: 23 * 60, // shift so Sleep wraps: 00:00 Sleep? build below
+        firstStartMin:
+            23 * 60, // shift so Sleep wraps: 00:00 Sleep? build below
       );
       // Simpler explicit wrap: Sleep 23:00 -> 07:00 next day.
       final night = DayProfile.ring(

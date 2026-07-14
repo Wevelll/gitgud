@@ -74,12 +74,25 @@ UI/painter changes: a golden test for the dial at a few times of day is worth it
 
 ```
 flutter run -d macos|windows|linux|chrome     # dev
-flutter test                                  # all tests
+flutter test                                  # app widget + golden tests
 dart format . && flutter analyze              # before commit
 dart test packages/core                       # core-only
-# Build per platform: flutter build <target> — fill in signing/native steps as they land
+dart test packages/mcp packages/store         # server + persistence
+flutter build linux|windows|macos|web|apk|ios # per-platform release
 ```
-(Project-specific build/signing/MCP-launch commands go here as they're set up.)
+
+Platform notes (all runners are scaffolded and configured):
+- **SQLite** ships via `package:sqlite3` 3.x build hooks — first build downloads
+  a hash-pinned prebuilt binary (GitHub releases). Offline/sandboxed builds can
+  set the `sqlite3: {source: system}` hooks user-define in the app pubspec
+  (see README); the store/mcp package tests already run that way.
+- **Web** must stay CDN-free: `web/flutter_bootstrap.js` pins CanvasKit to the
+  locally shipped copy, and Roboto is bundled. Don't remove either.
+- **Android** needs core-library desugaring (configured in
+  `android/app/build.gradle.kts`) for flutter_local_notifications.
+- **macOS** Release entitlements include network **client** (calendar fetch)
+  and **server** (loopback hub) — the sandbox strips servers without them.
+- Release **signing** (Android keystore, Apple certs, MSIX) is not set up yet.
 
 ---
 

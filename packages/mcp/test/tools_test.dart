@@ -3,36 +3,34 @@ import 'package:day_dial_mcp/day_dial_mcp.dart';
 import 'package:test/test.dart';
 
 DayProfile weekday() => DayProfile.ring(
-      id: 'weekday',
-      name: 'Weekday',
-      isDefault: true,
-      segmentIds: const ['sleep', 'morning', 'deep', 'lunch', 'work', 'free'],
-      spans: const [
-        (startMin: 1380, name: 'Sleep', colorHex: '#4B4FA6'),
-        (startMin: 420, name: 'Morning', colorHex: '#C98A3E'),
-        (startMin: 540, name: 'Deep work', colorHex: '#2E8B8B'),
-        (startMin: 780, name: 'Lunch', colorHex: '#B5624F'),
-        (startMin: 840, name: 'Work', colorHex: '#3E7CB1'),
-        (startMin: 1080, name: 'Free time', colorHex: '#6FA85B'),
-      ],
-    );
+  id: 'weekday',
+  name: 'Weekday',
+  isDefault: true,
+  segmentIds: const ['sleep', 'morning', 'deep', 'lunch', 'work', 'free'],
+  spans: const [
+    (startMin: 1380, name: 'Sleep', colorHex: '#4B4FA6'),
+    (startMin: 420, name: 'Morning', colorHex: '#C98A3E'),
+    (startMin: 540, name: 'Deep work', colorHex: '#2E8B8B'),
+    (startMin: 780, name: 'Lunch', colorHex: '#B5624F'),
+    (startMin: 840, name: 'Work', colorHex: '#3E7CB1'),
+    (startMin: 1080, name: 'Free time', colorHex: '#6FA85B'),
+  ],
+);
 
 DayProfile weekend() => DayProfile.ring(
-      id: 'weekend',
-      name: 'Weekend',
-      spans: const [
-        (startMin: 1380, name: 'Sleep', colorHex: '#4B4FA6'),
-        (startMin: 540, name: 'Chill', colorHex: '#6FA85B'),
-      ],
-    );
+  id: 'weekend',
+  name: 'Weekend',
+  spans: const [
+    (startMin: 1380, name: 'Sleep', colorHex: '#4B4FA6'),
+    (startMin: 540, name: 'Chill', colorHex: '#6FA85B'),
+  ],
+);
 
 // Friday 2026-07-03, 07:30 — inside Morning.
 DateTime fixedClock() => DateTime(2026, 7, 3, 7, 30);
 
-InMemoryDayRepository repo() => InMemoryDayRepository(
-      profiles: [weekday(), weekend()],
-      clock: fixedClock,
-    );
+InMemoryDayRepository repo() =>
+    InMemoryDayRepository(profiles: [weekday(), weekend()], clock: fixedClock);
 
 void main() {
   group('consent gating', () {
@@ -53,8 +51,11 @@ void main() {
       final gate = CallbackConsent((_) async => true);
       final tools = DayDialTools(repo(), gate, clock: fixedClock);
 
-      await tools
-          .call('add_block', {'name': 'Gym', 'start': '10:00', 'end': '11:00'});
+      await tools.call('add_block', {
+        'name': 'Gym',
+        'start': '10:00',
+        'end': '11:00',
+      });
       expect(gate.seen.single.tool, 'add_block');
     });
 
@@ -64,8 +65,11 @@ void main() {
       final before = r.activeProfile().segments.length;
 
       expect(
-        () => tools.call(
-            'add_block', {'name': 'Gym', 'start': '10:00', 'end': '11:00'}),
+        () => tools.call('add_block', {
+          'name': 'Gym',
+          'start': '10:00',
+          'end': '11:00',
+        }),
         throwsA(isA<ConsentDeniedException>()),
       );
       expect(r.activeProfile().segments.length, before);
@@ -80,8 +84,10 @@ void main() {
     });
 
     test('spec marks exactly the writes as mutating', () {
-      final mutating =
-          DayDialTools.specs.where((s) => s.mutates).map((s) => s.name).toSet();
+      final mutating = DayDialTools.specs
+          .where((s) => s.mutates)
+          .map((s) => s.name)
+          .toSet();
       expect(mutating, {
         'add_block',
         'update_block',
@@ -100,17 +106,21 @@ void main() {
         'log_habit',
       });
       expect(
-          DayDialTools.specs
-              .where((s) => s.destructive)
-              .map((s) => s.name)
-              .toSet(),
-          {'delete_block', 'delete_recurring_task', 'delete_sub_block'});
+        DayDialTools.specs
+            .where((s) => s.destructive)
+            .map((s) => s.name)
+            .toSet(),
+        {'delete_block', 'delete_recurring_task', 'delete_sub_block'},
+      );
     });
   });
 
   group('read tools', () {
-    final tools =
-        DayDialTools(repo(), const AllowAllConsent(), clock: fixedClock);
+    final tools = DayDialTools(
+      repo(),
+      const AllowAllConsent(),
+      clock: fixedClock,
+    );
 
     test('get_current_block reflects the clock', () async {
       final r = await tools.call('get_current_block') as Map;
@@ -142,14 +152,19 @@ void main() {
       final r = repo();
       final tools = DayDialTools(r, const AllowAllConsent(), clock: fixedClock);
 
-      final added = await tools.call(
-              'add_block', {'name': 'Gym', 'start': '10:00', 'end': '11:00'})
-          as Map;
+      final added =
+          await tools.call('add_block', {
+                'name': 'Gym',
+                'start': '10:00',
+                'end': '11:00',
+              })
+              as Map;
       final id = added['id'] as String;
       expect(r.activeProfile().segments.any((s) => s.id == id), isTrue);
 
-      final updated = await tools
-          .call('update_block', {'id': id, 'name': 'Workout'}) as Map;
+      final updated =
+          await tools.call('update_block', {'id': id, 'name': 'Workout'})
+              as Map;
       expect(updated['name'], 'Workout');
 
       await tools.call('delete_block', {'id': id});
@@ -160,18 +175,24 @@ void main() {
       final r = repo();
       final tools = DayDialTools(r, const AllowAllConsent(), clock: fixedClock);
 
-      final task = await tools.call('add_recurring_task',
-          {'label': 'Take meds', 'recurrence': 'daily'}) as Map;
+      final task =
+          await tools.call('add_recurring_task', {
+                'label': 'Take meds',
+                'recurrence': 'daily',
+              })
+              as Map;
       final id = task['id'] as String;
 
-      var pending = await tools
-          .call('get_recurring_tasks', {'status': 'pending'}) as List;
+      var pending =
+          await tools.call('get_recurring_tasks', {'status': 'pending'})
+              as List;
       expect(pending.single['label'], 'Take meds');
 
       await tools.call('complete_task', {'id': id});
 
-      pending = await tools.call('get_recurring_tasks', {'status': 'pending'})
-          as List;
+      pending =
+          await tools.call('get_recurring_tasks', {'status': 'pending'})
+              as List;
       expect(pending, isEmpty);
       final done =
           await tools.call('get_recurring_tasks', {'status': 'done'}) as List;
@@ -207,9 +228,13 @@ void main() {
       final r = repo();
       final tools = DayDialTools(r, const AllowAllConsent(), clock: fixedClock);
 
-      final habit = await tools.call(
-              'add_habit', {'label': 'Water', 'polarity': 'good', 'target': 8})
-          as Map;
+      final habit =
+          await tools.call('add_habit', {
+                'label': 'Water',
+                'polarity': 'good',
+                'target': 8,
+              })
+              as Map;
       final id = habit['id'] as String;
 
       await tools.call('log_habit', {'id': id});
@@ -217,8 +242,9 @@ void main() {
       expect(logged['count'], 2);
 
       final habits = await tools.call('get_habits') as List;
-      final water =
-          habits.cast<Map<String, Object?>>().firstWhere((h) => h['id'] == id);
+      final water = habits.cast<Map<String, Object?>>().firstWhere(
+        (h) => h['id'] == id,
+      );
       expect(water['count'], 2);
       expect(water['target'], 8);
 
@@ -231,11 +257,13 @@ void main() {
     test('log_actual by blockId derives the category', () async {
       final r = repo();
       final tools = DayDialTools(r, const AllowAllConsent(), clock: fixedClock);
-      final log = await tools.call('log_actual', {
-        'blockId': 'work',
-        'start': '2026-07-03T14:00:00Z',
-        'end': '2026-07-03T15:30:00Z',
-      }) as Map;
+      final log =
+          await tools.call('log_actual', {
+                'blockId': 'work',
+                'start': '2026-07-03T14:00:00Z',
+                'end': '2026-07-03T15:30:00Z',
+              })
+              as Map;
       expect(log['category'], 'Work');
       expect(log['minutes'], 90);
     });
@@ -243,13 +271,21 @@ void main() {
     test('recurring task: update, archive, and delete', () async {
       final r = repo();
       final tools = DayDialTools(r, const AllowAllConsent(), clock: fixedClock);
-      final task = await tools.call(
-              'add_recurring_task', {'label': 'Meds', 'recurrence': 'daily'})
-          as Map;
+      final task =
+          await tools.call('add_recurring_task', {
+                'label': 'Meds',
+                'recurrence': 'daily',
+              })
+              as Map;
       final id = task['id'] as String;
 
-      final updated = await tools.call('update_recurring_task',
-          {'id': id, 'label': 'Vitamins', 'recurrence': 'weekly:1,3,5'}) as Map;
+      final updated =
+          await tools.call('update_recurring_task', {
+                'id': id,
+                'label': 'Vitamins',
+                'recurrence': 'weekly:1,3,5',
+              })
+              as Map;
       expect(updated['label'], 'Vitamins');
       expect(updated['recurrence'], 'weekly:1,3,5');
 
@@ -268,12 +304,14 @@ void main() {
       final tools = DayDialTools(r, const AllowAllConsent(), clock: fixedClock);
 
       // Free time is 18:00–23:00 in the weekday ring.
-      final added = await tools.call('add_sub_block', {
-        'parentId': 'free',
-        'name': 'Gym',
-        'start': '18:00',
-        'end': '19:00',
-      }) as Map;
+      final added =
+          await tools.call('add_sub_block', {
+                'parentId': 'free',
+                'name': 'Gym',
+                'start': '18:00',
+                'end': '19:00',
+              })
+              as Map;
       final id = added['id'] as String;
       expect(added['parentId'], 'free');
 
@@ -281,8 +319,9 @@ void main() {
           await tools.call('get_sub_blocks', {'parentId': 'free'}) as List;
       expect(list.single['name'], 'Gym');
 
-      final updated = await tools
-          .call('update_sub_block', {'id': id, 'name': 'Workout'}) as Map;
+      final updated =
+          await tools.call('update_sub_block', {'id': id, 'name': 'Workout'})
+              as Map;
       expect(updated['name'], 'Workout');
 
       await tools.call('delete_sub_block', {'id': id});
@@ -332,12 +371,18 @@ void main() {
   });
 
   group('get_calendar_events', () {
-    test('returns [] when no calendar is wired (local-first default)', () async {
-      final tools = DayDialTools(repo(), CallbackConsent((_) async => true),
-          clock: fixedClock);
-      final events = await tools.call('get_calendar_events') as List;
-      expect(events, isEmpty);
-    });
+    test(
+      'returns [] when no calendar is wired (local-first default)',
+      () async {
+        final tools = DayDialTools(
+          repo(),
+          CallbackConsent((_) async => true),
+          clock: fixedClock,
+        );
+        final events = await tools.call('get_calendar_events') as List;
+        expect(events, isEmpty);
+      },
+    );
 
     test('is a read tool — never touches the consent gate', () async {
       final gate = CallbackConsent((_) async => true);
@@ -359,8 +404,12 @@ void main() {
           calendarName: 'Work',
         ),
       ]);
-      final tools = DayDialTools(repo(), CallbackConsent((_) async => true),
-          clock: fixedClock, calendar: calendar);
+      final tools = DayDialTools(
+        repo(),
+        CallbackConsent((_) async => true),
+        clock: fixedClock,
+        calendar: calendar,
+      );
 
       final events =
           await tools.call('get_calendar_events', {'date': '2026-07-03'})

@@ -53,8 +53,10 @@ class DataApiServer {
   Future<void> _dispatch(HttpRequest req) async {
     final res = req.response;
     res.headers.set('access-control-allow-origin', _corsOrigin(req));
-    res.headers
-        .set('access-control-allow-headers', 'authorization,content-type');
+    res.headers.set(
+      'access-control-allow-headers',
+      'authorization,content-type',
+    );
     res.headers.set('access-control-allow-methods', 'GET,POST,PUT,OPTIONS');
     try {
       if (req.method == 'OPTIONS') {
@@ -67,7 +69,10 @@ class DataApiServer {
       }
       if (token != null && !_authorized(req)) {
         return _reject(
-            req, HttpStatus.unauthorized, 'Invalid or missing token');
+          req,
+          HttpStatus.unauthorized,
+          'Invalid or missing token',
+        );
       }
 
       if (req.method == 'GET' && req.uri.path == '/state') {
@@ -98,8 +103,9 @@ class DataApiServer {
       tools.repo.restore(DaySnapshot.fromJson(state));
       return _json(req.response, {'ok': true});
     } catch (e) {
-      return _json(req.response, {'error': '$e'},
-          status: HttpStatus.badRequest);
+      return _json(req.response, {
+        'error': '$e',
+      }, status: HttpStatus.badRequest);
     }
   }
 
@@ -109,13 +115,15 @@ class DataApiServer {
     try {
       payload = (jsonDecode(body) as Map).cast<String, Object?>();
     } catch (_) {
-      return _json(req.response, {'error': 'Malformed JSON'},
-          status: HttpStatus.badRequest);
+      return _json(req.response, {
+        'error': 'Malformed JSON',
+      }, status: HttpStatus.badRequest);
     }
     final name = payload['name'];
     if (name is! String) {
-      return _json(req.response, {'error': 'Missing tool "name"'},
-          status: HttpStatus.badRequest);
+      return _json(req.response, {
+        'error': 'Missing tool "name"',
+      }, status: HttpStatus.badRequest);
     }
     final args =
         (payload['arguments'] as Map?)?.cast<String, Object?>() ?? const {};
@@ -123,13 +131,17 @@ class DataApiServer {
       final result = await tools.call(name, args);
       return _json(req.response, {'result': result});
     } catch (e) {
-      return _json(req.response, {'error': '$e'},
-          status: HttpStatus.badRequest);
+      return _json(req.response, {
+        'error': '$e',
+      }, status: HttpStatus.badRequest);
     }
   }
 
-  Future<void> _json(HttpResponse res, Map<String, Object?> body,
-      {int status = HttpStatus.ok}) {
+  Future<void> _json(
+    HttpResponse res,
+    Map<String, Object?> body, {
+    int status = HttpStatus.ok,
+  }) {
     res.statusCode = status;
     res.headers.contentType = ContentType.json;
     res.write(jsonEncode(body));

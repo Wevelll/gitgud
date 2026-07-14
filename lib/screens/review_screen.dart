@@ -44,9 +44,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
       'csv' => ('daydial-logs-$today.csv', timeLogsToCsv(_repo.logs())),
       'ics' => ('daydial-logs-$today.ics', timeLogsToIcs(_repo.logs())),
       _ => (
-          'daydial-backup-$today.json',
-          const JsonEncoder.withIndent('  ').convert(_repo.snapshot().toJson()),
-        ),
+        'daydial-backup-$today.json',
+        const JsonEncoder.withIndent('  ').convert(_repo.snapshot().toJson()),
+      ),
     };
     try {
       final where = await _exporter.save(name, contents);
@@ -56,8 +56,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
     }
   }
 
-  void _toast(String message) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  void _toast(String message) => ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(SnackBar(content: Text(message)));
 
   PeriodicReview _review() {
     final today = CivilDate.fromDateTime(DateTime.now());
@@ -202,47 +203,50 @@ class _ReviewScreenState extends State<ReviewScreen> {
   }
 
   Widget _exportBar() => Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          OutlinedButton.icon(
-            onPressed: () => _export('csv'),
-            icon: const Icon(Icons.table_chart_outlined, size: 18),
-            label: const Text('Logs CSV'),
-          ),
-          OutlinedButton.icon(
-            onPressed: () => _export('ics'),
-            icon: const Icon(Icons.event_note_outlined, size: 18),
-            label: const Text('Logs ICS'),
-          ),
-          OutlinedButton.icon(
-            onPressed: () => _export('json'),
-            icon: const Icon(Icons.data_object, size: 18),
-            label: const Text('Backup JSON'),
-          ),
-        ],
-      );
+    spacing: 8,
+    runSpacing: 8,
+    children: [
+      OutlinedButton.icon(
+        onPressed: () => _export('csv'),
+        icon: const Icon(Icons.table_chart_outlined, size: 18),
+        label: const Text('Logs CSV'),
+      ),
+      OutlinedButton.icon(
+        onPressed: () => _export('ics'),
+        icon: const Icon(Icons.event_note_outlined, size: 18),
+        label: const Text('Logs ICS'),
+      ),
+      OutlinedButton.icon(
+        onPressed: () => _export('json'),
+        icon: const Icon(Icons.data_object, size: 18),
+        label: const Text('Backup JSON'),
+      ),
+    ],
+  );
 
   Widget _sectionLabel(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 8, top: 4),
-        child: Text(
-          text,
-          style: TextStyle(
-            fontSize: 11,
-            letterSpacing: 2,
-            color: Colors.white.withValues(alpha: 0.45),
-          ),
-        ),
-      );
+    padding: const EdgeInsets.only(bottom: 8, top: 4),
+    child: Text(
+      text,
+      style: TextStyle(
+        fontSize: 11,
+        letterSpacing: 2,
+        color: Colors.white.withValues(alpha: 0.45),
+      ),
+    ),
+  );
 
   Widget _hint(String text) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: _panel,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(text, style: TextStyle(color: Colors.white.withValues(alpha: 0.55))),
-      );
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: _panel,
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Text(
+      text,
+      style: TextStyle(color: Colors.white.withValues(alpha: 0.55)),
+    ),
+  );
 
   Widget _streakRow(NamedStreak s) {
     return Container(
@@ -254,9 +258,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
       ),
       child: Row(
         children: [
-          Expanded(
-            child: Text(s.label, overflow: TextOverflow.ellipsis),
-          ),
+          Expanded(child: Text(s.label, overflow: TextOverflow.ellipsis)),
           _pill(
             '🔥 ${s.streak.current}',
             s.streak.current > 0
@@ -274,13 +276,13 @@ class _ReviewScreenState extends State<ReviewScreen> {
   }
 
   Widget _pill(String text, Color color) => Text(
-        text,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.w700,
-          fontFeatures: const [FontFeature.tabularFigures()],
-        ),
-      );
+    text,
+    style: TextStyle(
+      color: color,
+      fontWeight: FontWeight.w700,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    ),
+  );
 
   Widget _varianceRow(CategoryVariance v) {
     final color = parseHexColor(_colorForCategory(v.category));
@@ -316,8 +318,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 color: d == 0
                     ? Colors.white.withValues(alpha: 0.5)
                     : (d > 0
-                        ? const Color(0xFFC98A3E)
-                        : const Color(0xFF5A9FB0)),
+                          ? const Color(0xFFC98A3E)
+                          : const Color(0xFF5A9FB0)),
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),

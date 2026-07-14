@@ -17,10 +17,12 @@ void main() {
 
   test('isIdle triggers only past the threshold', () {
     expect(
-        isIdle(lastActivityEpochMs: 0, nowEpochMs: ms(10), thresholdMinutes: 15),
+        isIdle(
+            lastActivityEpochMs: 0, nowEpochMs: ms(10), thresholdMinutes: 15),
         isFalse);
     expect(
-        isIdle(lastActivityEpochMs: 0, nowEpochMs: ms(20), thresholdMinutes: 15),
+        isIdle(
+            lastActivityEpochMs: 0, nowEpochMs: ms(20), thresholdMinutes: 15),
         isTrue);
   });
 

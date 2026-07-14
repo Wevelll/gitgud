@@ -27,7 +27,9 @@ Future<void> main(List<String> args) async {
   // state is in-memory and lost on exit.
   final DayRepository repo = dbPath != null
       ? SqliteDayRepository.open(
-          path: dbPath, seedIfEmpty: [defaultWeekdayProfile()])
+          path: dbPath,
+          seedIfEmpty: [defaultWeekdayProfile()],
+        )
       : InMemoryDayRepository(profiles: [defaultWeekdayProfile()]);
   final server = McpServer(DayDialTools(repo, const AllowAllConsent()));
 

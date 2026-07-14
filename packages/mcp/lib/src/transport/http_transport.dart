@@ -41,8 +41,12 @@ class McpHttpServer {
     final addr = address ?? InternetAddress.loopbackIPv4;
     final http = await HttpServer.bind(addr, port);
     _http = http;
-    _endpoint =
-        Uri(scheme: 'http', host: addr.address, port: http.port, path: path);
+    _endpoint = Uri(
+      scheme: 'http',
+      host: addr.address,
+      port: http.port,
+      path: path,
+    );
     _accept(http);
     return _endpoint!;
   }
@@ -68,7 +72,10 @@ class McpHttpServer {
       }
       if (token != null && !_authorized(req)) {
         return _reject(
-            req, HttpStatus.unauthorized, 'Invalid or missing token');
+          req,
+          HttpStatus.unauthorized,
+          'Invalid or missing token',
+        );
       }
       if (req.method != 'POST' || req.uri.path != path) {
         return _reject(req, HttpStatus.notFound, 'Not found');
@@ -81,11 +88,13 @@ class McpHttpServer {
       } catch (_) {
         res.statusCode = HttpStatus.badRequest;
         res.headers.contentType = ContentType.json;
-        res.write(jsonEncode({
-          'jsonrpc': '2.0',
-          'id': null,
-          'error': {'code': -32700, 'message': 'Parse error'},
-        }));
+        res.write(
+          jsonEncode({
+            'jsonrpc': '2.0',
+            'id': null,
+            'error': {'code': -32700, 'message': 'Parse error'},
+          }),
+        );
         return res.close();
       }
 
@@ -116,11 +125,13 @@ class McpHttpServer {
     } catch (e) {
       try {
         res.statusCode = HttpStatus.internalServerError;
-        res.write(jsonEncode({
-          'jsonrpc': '2.0',
-          'id': null,
-          'error': {'code': -32603, 'message': 'Internal error: $e'},
-        }));
+        res.write(
+          jsonEncode({
+            'jsonrpc': '2.0',
+            'id': null,
+            'error': {'code': -32603, 'message': 'Internal error: $e'},
+          }),
+        );
       } finally {
         await res.close();
       }

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:day_dial/main.dart';
+import 'package:day_dial/painters/dial_painter.dart';
 import 'package:day_dial/screens/templates_screen.dart';
 import 'package:day_dial/widgets/dial_view.dart';
 import 'package:day_dial_core/day_dial_core.dart';
@@ -408,6 +409,50 @@ void main() {
       await tester.pump(const Duration(seconds: 11));
 
       expect(repo.activeProfile().id, before);
+      await tester.pumpWidget(const SizedBox());
+    });
+  });
+
+  group('the dial mode is remembered', () {
+    // Compass vs clock is a personal reading preference (SPEC §2.2); having it
+    // snap back to compass on every launch is the kind of small friction that
+    // makes an app feel unfinished.
+    testWidgets('choosing Clock persists, and a relaunch comes back in it', (
+      tester,
+    ) async {
+      final repo = testRepository();
+      await tester.pumpWidget(DayDialApp(repository: repo));
+      await tester.pump();
+
+      await tester.tap(find.text('Clock'));
+      await tester.pump();
+      expect(repo.getSetting('dial.mode'), 'clock');
+
+      // Relaunch against the same store.
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(DayDialApp(repository: repo));
+      await tester.pump();
+
+      final toggle = tester.widget<SegmentedButton<DialMode>>(
+        find.byType(SegmentedButton<DialMode>),
+      );
+      expect(toggle.selected, {DialMode.clock});
+
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('with nothing stored it opens in compass, the default', (
+      tester,
+    ) async {
+      final repo = testRepository();
+      await tester.pumpWidget(DayDialApp(repository: repo));
+      await tester.pump();
+
+      final toggle = tester.widget<SegmentedButton<DialMode>>(
+        find.byType(SegmentedButton<DialMode>),
+      );
+      expect(toggle.selected, {DialMode.compass});
+
       await tester.pumpWidget(const SizedBox());
     });
   });

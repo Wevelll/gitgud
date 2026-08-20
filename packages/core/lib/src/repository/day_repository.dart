@@ -171,6 +171,22 @@ abstract interface class DayRepository {
   /// whether one was removed (so a count can't go below zero).
   bool decrementHabit(String habitId, CivilDate date);
 
+  /// User preferences, as opaque string key/values — how the dial is being
+  /// read (compass or clock), and whatever else the UI needs to remember
+  /// between launches.
+  ///
+  /// Deliberately untyped: preferences are UI vocabulary, and giving `core` a
+  /// field per toggle would make it the UI's schema. A store's own bookkeeping
+  /// (schema version, which profile is active) is *not* exposed here — that is
+  /// an implementation detail behind this interface, not a user preference.
+  Map<String, String> settings();
+
+  /// The value stored for [key], or null if unset.
+  String? getSetting(String key);
+
+  /// Stores [value] under [key], replacing any previous value.
+  void setSetting(String key, String value);
+
   /// A full, serializable snapshot of current state — the sync/export unit.
   DaySnapshot snapshot();
 
@@ -217,6 +233,7 @@ class InMemoryDayRepository implements DayRepository {
     repo._habits.addAll(snapshot.habits);
     repo._habitEvents.addAll(snapshot.habitEvents);
     repo._loadSubBlocks(snapshot.subBlocks);
+    repo._settings.addAll(snapshot.settings);
     return repo;
   }
 
@@ -232,6 +249,7 @@ class InMemoryDayRepository implements DayRepository {
   final List<HabitEvent> _habitEvents = [];
   // Sparse sub-block overlay: parent-segment id → growable list of sub-blocks.
   final Map<String, List<Segment>> _subBlocks = {};
+  final Map<String, String> _settings = {};
 
   static String Function() _sequentialIds() {
     var n = 0;
@@ -645,6 +663,15 @@ class InMemoryDayRepository implements DayRepository {
   }
 
   @override
+  Map<String, String> settings() => Map.unmodifiable(_settings);
+
+  @override
+  String? getSetting(String key) => _settings[key];
+
+  @override
+  void setSetting(String key, String value) => _settings[key] = value;
+
+  @override
   DaySnapshot snapshot() => DaySnapshot(
         profiles: profiles(),
         activeProfileId: _activeId,
@@ -656,6 +683,7 @@ class InMemoryDayRepository implements DayRepository {
         subBlocks: {
           for (final e in _subBlocks.entries) e.key: List.unmodifiable(e.value),
         },
+        settings: settings(),
       );
 
   @override
@@ -680,6 +708,9 @@ class InMemoryDayRepository implements DayRepository {
       ..clear()
       ..addAll(snapshot.habitEvents);
     _loadSubBlocks(snapshot.subBlocks);
+    _settings
+      ..clear()
+      ..addAll(snapshot.settings);
   }
 
   void _loadSubBlocks(Map<String, List<Segment>> plan) {

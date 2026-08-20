@@ -48,6 +48,10 @@ abstract class MirroredDayRepository implements DayRepository {
   @override
   SubBlockPlan subBlocks() => cache.subBlocks();
   @override
+  Map<String, String> settings() => cache.settings();
+  @override
+  String? getSetting(String key) => cache.getSetting(key);
+  @override
   DaySnapshot snapshot() => cache.snapshot();
 
   // ---- writes (cache first, then mirror) ------------------------------------
@@ -293,6 +297,12 @@ abstract class MirroredDayRepository implements DayRepository {
     final removed = cache.decrementHabit(habitId, date);
     if (removed) onMutated();
     return removed;
+  }
+
+  @override
+  void setSetting(String key, String value) {
+    cache.setSetting(key, value);
+    onMutated();
   }
 
   @override

@@ -402,4 +402,61 @@ void main() {
       reopened.close();
     });
   });
+
+  group('settings', () {
+    test('a preference survives a real reopen', () {
+      final dir = Directory.systemTemp.createTempSync('daydial_settings');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final path = '${dir.path}/day.db';
+
+      final first = SqliteDayRepository.open(
+        path: path,
+        seedIfEmpty: [weekday()],
+      );
+      first.setSetting('dial.mode', 'clock');
+      first.close();
+
+      final second = SqliteDayRepository.open(path: path);
+      addTearDown(second.close);
+      expect(second.getSetting('dial.mode'), 'clock');
+    });
+
+    test('store bookkeeping is not exposed as a user preference', () {
+      final repo = SqliteDayRepository.open(seedIfEmpty: [weekday()]);
+      addTearDown(repo.close);
+
+      // These share the settings table but are the store's own business.
+      expect(repo.settings().keys, isNot(contains('schema_version')));
+      expect(repo.settings().keys, isNot(contains('active_profile_id')));
+      expect(repo.getSetting('active_profile_id'), isNull);
+      expect(
+        () => repo.setSetting('schema_version', '999'),
+        throwsArgumentError,
+      );
+    });
+
+    test('restoring a snapshot cannot overwrite bookkeeping', () {
+      final repo = SqliteDayRepository.open(seedIfEmpty: [weekday()]);
+      addTearDown(repo.close);
+      final activeBefore = repo.activeProfile().id;
+      final base = repo.snapshot();
+
+      // A snapshot from elsewhere naming an internal key alongside a real one.
+      repo.restore(
+        DaySnapshot(
+          profiles: base.profiles,
+          activeProfileId: base.activeProfileId,
+          tasks: base.tasks,
+          completions: base.completions,
+          logs: base.logs,
+          habits: base.habits,
+          habitEvents: base.habitEvents,
+          settings: const {'schema_version': '999', 'dial.mode': 'clock'},
+        ),
+      );
+
+      expect(repo.activeProfile().id, activeBefore);
+      expect(repo.getSetting('dial.mode'), 'clock'); // the real one lands
+    });
+  });
 }

@@ -88,6 +88,31 @@ class SqliteDayRepository implements DayRepository {
     return rows.isEmpty ? null : rows.first['value'] as String;
   }
 
+  /// Store bookkeeping that shares the `settings` table but is not a user
+  /// preference. Kept out of [settings] so a snapshot can't carry one machine's
+  /// schema version or active profile onto another, and so a restore can't
+  /// overwrite them (see [restore], which sets `active_profile_id` itself).
+  static const _internalSettings = {'schema_version', 'active_profile_id'};
+
+  @override
+  Map<String, String> settings() => {
+    for (final row in _db.select('SELECT key, value FROM settings'))
+      if (!_internalSettings.contains(row['key'] as String))
+        row['key'] as String: row['value'] as String,
+  };
+
+  @override
+  String? getSetting(String key) =>
+      _internalSettings.contains(key) ? null : _getSetting(key);
+
+  @override
+  void setSetting(String key, String value) {
+    if (_internalSettings.contains(key)) {
+      throw ArgumentError.value(key, 'key', 'Reserved for store bookkeeping');
+    }
+    _setSetting(key, value);
+  }
+
   String get _activeId {
     final id = _getSetting('active_profile_id');
     if (id == null) throw StateError('No active profile set');
@@ -791,6 +816,7 @@ class SqliteDayRepository implements DayRepository {
     habits: habits(),
     habitEvents: habitEvents(),
     subBlocks: _loadSubBlockMap(),
+    settings: settings(),
   );
 
   @override
@@ -813,6 +839,11 @@ class SqliteDayRepository implements DayRepository {
         _insertProfile(p);
       }
       _setSetting('active_profile_id', snapshot.activeProfileId);
+      // Upsert rather than replace: the table also holds this store's own
+      // bookkeeping, which a snapshot from another device must not carry over.
+      for (final e in snapshot.settings.entries) {
+        if (!_internalSettings.contains(e.key)) _setSetting(e.key, e.value);
+      }
       _writeSubBlocks(snapshot.subBlocks);
       for (final t in snapshot.tasks) {
         _db.execute(

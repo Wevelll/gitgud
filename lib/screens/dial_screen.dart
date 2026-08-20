@@ -59,7 +59,7 @@ class _DialScreenState extends State<DialScreen> {
   late List<HabitEvent> _habitEvents;
   late List<TimeLog> _logs;
 
-  DialMode _mode = DialMode.compass;
+  late DialMode _mode;
   bool _live = true;
   late int _nowMin;
   String? _selectedId;
@@ -88,9 +88,27 @@ class _DialScreenState extends State<DialScreen> {
     super.initState();
     _nowMin = _minuteOfNow();
     _today = CivilDate.fromDateTime(widget.clock());
+    _mode = _savedMode();
     _loadFromRepo();
     _startClock();
     _refreshCalendar();
+  }
+
+  /// How the user last chose to read the dial. Compass is the signature mode
+  /// (SPEC §2.2) and so the default, but the choice is personal and shouldn't
+  /// reset on every launch.
+  static const _modeSetting = 'dial.mode';
+
+  DialMode _savedMode() => _repo.getSetting(_modeSetting) == 'clock'
+      ? DialMode.clock
+      : DialMode.compass;
+
+  void _setMode(DialMode mode) {
+    setState(() => _mode = mode);
+    _repo.setSetting(
+      _modeSetting,
+      mode == DialMode.clock ? 'clock' : 'compass',
+    );
   }
 
   /// Pulls the calendar overlay in the background (if a service is wired). A
@@ -742,7 +760,7 @@ class _DialScreenState extends State<DialScreen> {
               ],
               selected: {_mode},
               showSelectedIcon: false,
-              onSelectionChanged: (s) => setState(() => _mode = s.first),
+              onSelectionChanged: (s) => _setMode(s.first),
             ),
           ],
         ),

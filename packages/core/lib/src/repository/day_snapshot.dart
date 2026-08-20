@@ -19,6 +19,7 @@ class DaySnapshot {
     required this.habits,
     required this.habitEvents,
     this.subBlocks = const {},
+    this.settings = const {},
   });
 
   final List<DayProfile> profiles;
@@ -33,6 +34,10 @@ class DaySnapshot {
   /// nested detail). Optional/defaults empty so older snapshots round-trip.
   final Map<String, List<Segment>> subBlocks;
 
+  /// User preferences (see [DayRepository.settings]). Optional/defaults empty,
+  /// so a snapshot written before they existed still loads.
+  final Map<String, String> settings;
+
   Map<String, Object?> toJson() => {
         'activeProfileId': activeProfileId,
         'profiles': [for (final p in profiles) _profileToJson(p)],
@@ -45,6 +50,7 @@ class DaySnapshot {
           for (final e in subBlocks.entries)
             e.key: [for (final s in e.value) _segmentToJson(s)],
         },
+        'settings': settings,
       };
 
   factory DaySnapshot.fromJson(Map<String, Object?> json) {
@@ -70,6 +76,10 @@ class DaySnapshot {
             for (final s in (e.value as List).cast<Map<String, Object?>>())
               _segmentFromJson(s)
           ],
+      },
+      settings: {
+        for (final e in ((json['settings'] as Map?) ?? const {}).entries)
+          e.key as String: '${e.value}',
       },
     );
   }

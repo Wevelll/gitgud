@@ -96,3 +96,7 @@ Notes:
 - **Notifications** are local-only on every platform (no push service). On
   Linux delivery uses the session D-Bus and degrades to a log line when no
   bus is available (e.g. headless).
+- **Test concurrency:** a few suites (`agent_host_test`, `synced_repository_test`)
+  stand up real loopback HTTP servers. On a many-core machine the default
+  parallelism oversubscribes them and runs get slow; `flutter test -j 4` is
+  steadier if you see one drag.

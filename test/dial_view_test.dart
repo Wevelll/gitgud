@@ -219,6 +219,60 @@ void main() {
       await tester.pumpAndSettle(); // no callbacks wired: must not throw
     });
 
+    testWidgets('a press on a boundary still selects the wedge', (
+      tester,
+    ) async {
+      // Claiming the pointer at down-time costs the tap recognizer, so the
+      // press-without-moving case is handled by the drag path instead. Without
+      // that, the blocks either side of a boundary would be untappable.
+      String? tapped;
+      await tester.pumpWidget(
+        host(
+          DialView(
+            profile: testProfile(),
+            nowMin: 450,
+            mode: DialMode.clock,
+            onSegmentTapped: (id) => tapped = id,
+            onBoundaryDragged: (_, _) {},
+          ),
+        ),
+      );
+
+      final center = tester.getCenter(find.byType(DialView));
+      await tester.tapAt(center + ringPoint(540)); // right on Morning's end
+      await tester.pumpAndSettle();
+
+      expect(tapped, isNotNull);
+    });
+
+    testWidgets('a cancelled grab selects nothing and drops the drag', (
+      tester,
+    ) async {
+      String? tapped;
+      await tester.pumpWidget(
+        host(
+          DialView(
+            profile: testProfile(),
+            nowMin: 450,
+            mode: DialMode.clock,
+            onSegmentTapped: (id) => tapped = id,
+            onBoundaryDragged: (_, _) {},
+          ),
+        ),
+      );
+
+      final center = tester.getCenter(find.byType(DialView));
+      final gesture = await tester.startGesture(center + ringPoint(540));
+      await tester.pump();
+      expect(_painterOf(tester).draggingBoundaryId, 'morning');
+
+      await gesture.cancel();
+      await tester.pumpAndSettle();
+
+      expect(_painterOf(tester).draggingBoundaryId, isNull);
+      expect(tapped, isNull, reason: 'a cancel has no position to select from');
+    });
+
     testWidgets('the grabbed boundary is highlighted while dragging', (
       tester,
     ) async {

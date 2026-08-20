@@ -91,8 +91,14 @@ class _DialViewState extends State<DialView> {
     onTap(widget.profile.segmentAt(_geometry.minuteAt(local)).id);
   }
 
+  /// Set when the pointer was cancelled (the system took the gesture, the app
+  /// went to the background). See [_onPanEnd] for why this can't be read off
+  /// the end details.
+  bool _cancelled = false;
+
   void _onPanStart(Offset local) {
     _moved = false;
+    _cancelled = false;
     // Re-check rather than trusting that this pan was the claimed one: with no
     // scroll view competing, an ordinary drag anywhere on the dial also wins
     // the arena and lands here.
@@ -108,9 +114,13 @@ class _DialViewState extends State<DialView> {
     widget.onBoundaryDragged!(id, snapMinute(_geometry.minuteAt(local)));
   }
 
+  /// Ends the drag. Note this also runs on a *cancelled* pointer: once a drag
+  /// is accepted, a cancel is delivered as an end (with no velocity), not as
+  /// `onCancel` — so [_cancelled] is what tells them apart.
   void _onPanEnd(Offset local) {
     if (_dragging == null) return;
     setState(() => _dragging = null);
+    if (_cancelled) return; // the system took the gesture; do nothing with it
     // Claiming the pointer at down-time costs us the tap recognizer, so a
     // press on a boundary that never moved has to select the wedge itself —
     // otherwise the blocks next to a boundary would be untappable.
@@ -119,6 +129,12 @@ class _DialViewState extends State<DialView> {
     } else {
       _select(local);
     }
+  }
+
+  /// A gesture that was cancelled before it was ever accepted.
+  void _onPanCancel() {
+    if (_dragging == null) return;
+    setState(() => _dragging = null);
   }
 
   @override
@@ -146,12 +162,18 @@ class _DialViewState extends State<DialView> {
                   _BoundaryDragRecognizer:
                       GestureRecognizerFactoryWithHandlers<
                         _BoundaryDragRecognizer
-                      >(() => _BoundaryDragRecognizer(isGrab: _grabAt), (r) {
-                        r.onStart = (d) => _onPanStart(d.localPosition);
-                        r.onUpdate = (d) => _onPanUpdate(d.localPosition);
-                        r.onEnd = (d) => _onPanEnd(d.localPosition);
-                        r.onCancel = () => _onPanEnd(Offset.zero);
-                      }),
+                      >(
+                        () => _BoundaryDragRecognizer(
+                          isGrab: _grabAt,
+                          onCancelled: () => _cancelled = true,
+                        ),
+                        (r) {
+                          r.onStart = (d) => _onPanStart(d.localPosition);
+                          r.onUpdate = (d) => _onPanUpdate(d.localPosition);
+                          r.onEnd = (d) => _onPanEnd(d.localPosition);
+                          r.onCancel = _onPanCancel;
+                        },
+                      ),
               },
               child: CustomPaint(
                 size: _size,
@@ -189,10 +211,15 @@ class _DialViewState extends State<DialView> {
 /// [_DialViewState._onPanEnd] makes up for by selecting on a claimed press that
 /// never moved.
 class _BoundaryDragRecognizer extends PanGestureRecognizer {
-  _BoundaryDragRecognizer({required this.isGrab});
+  _BoundaryDragRecognizer({required this.isGrab, required this.onCancelled});
 
   /// Whether a pointer landing at this position (local to the dial) is a grab.
   final bool Function(Offset localPosition) isGrab;
+
+  /// Called when the pointer is cancelled. An *accepted* drag reports a cancel
+  /// as an ordinary end, so without this the dial couldn't tell a stolen
+  /// gesture from a finger lifted in place.
+  final VoidCallback onCancelled;
 
   @override
   void addAllowedPointer(PointerDownEvent event) {
@@ -201,5 +228,11 @@ class _BoundaryDragRecognizer extends PanGestureRecognizer {
     // `dragStartBehavior: start` means accepting here reports the drag from
     // where the finger actually landed, not from where the slop was crossed.
     if (grab) resolve(GestureDisposition.accepted);
+  }
+
+  @override
+  void handleEvent(PointerEvent event) {
+    if (event is PointerCancelEvent) onCancelled();
+    super.handleEvent(event);
   }
 }

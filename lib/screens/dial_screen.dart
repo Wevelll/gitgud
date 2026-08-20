@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../agent/agent_host.dart';
 import '../calendar/calendar_service.dart';
+import '../data/repository_factory.dart';
 import '../painters/dial_painter.dart';
 import '../widgets/dial_view.dart';
 import 'agent_screen.dart';
@@ -110,6 +111,57 @@ class _DialScreenState extends State<DialScreen> {
       mode == DialMode.clock ? 'clock' : 'compass',
     );
   }
+
+  /// Says where the day is being stored, because the app picks that for you at
+  /// startup (SPEC §8) and the answer is otherwise invisible — most sharply on
+  /// web, where "synced to the desktop" and "kept in this browser" are
+  /// different days, and where a browser blocking storage means nothing is
+  /// being saved at all.
+  ///
+  /// Quiet by default; the one case that can lose work is called out in red and
+  /// spelled out, rather than left to a hover the user may never try.
+  Widget _storageIndicator() {
+    final mode = storageModeOf(_repo);
+    final losing = mode == StorageMode.ephemeral;
+    final color = losing
+        ? const Color(0xFFB5624F)
+        : Colors.white.withValues(alpha: 0.45);
+    return InkWell(
+      key: const Key('storage-indicator'),
+      borderRadius: BorderRadius.circular(6),
+      onTap: () => ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(mode.detail))),
+      child: Tooltip(
+        message: mode.detail,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(_storageIcon(mode), size: 14, color: color),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  mode.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 11, color: color),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static IconData _storageIcon(StorageMode mode) => switch (mode) {
+    StorageMode.device => Icons.storage_outlined,
+    StorageMode.browser => Icons.language,
+    StorageMode.hub => Icons.sync,
+    StorageMode.ephemeral => Icons.warning_amber_rounded,
+  };
 
   /// Pulls the calendar overlay in the background (if a service is wired). A
   /// failed fetch is non-fatal — the dial just shows no events (local-first).
@@ -765,39 +817,48 @@ class _DialScreenState extends State<DialScreen> {
           ],
         ),
         const SizedBox(height: 4),
+        // The chip flexes against the icons, which are an inflexible group:
+        // on a narrow window the label ellipsizes away rather than pushing a
+        // button off the edge.
         Row(
-          mainAxisAlignment: MainAxisAlignment.end,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            IconButton(
-              tooltip: 'Day templates',
-              visualDensity: VisualDensity.compact,
-              onPressed: _openTemplates,
-              icon: const Icon(Icons.calendar_month_outlined),
-            ),
-            IconButton(
-              tooltip: 'Plan vs actual',
-              visualDensity: VisualDensity.compact,
-              onPressed: _openStats,
-              icon: const Icon(Icons.insights),
-            ),
-            IconButton(
-              tooltip: 'Review',
-              visualDensity: VisualDensity.compact,
-              onPressed: _openReview,
-              icon: const Icon(Icons.summarize_outlined),
-            ),
-            if (widget.calendarService != null)
-              IconButton(
-                tooltip: 'Calendars',
-                visualDensity: VisualDensity.compact,
-                onPressed: _openCalendars,
-                icon: const Icon(Icons.event_outlined),
-              ),
-            IconButton(
-              tooltip: 'Agent',
-              visualDensity: VisualDensity.compact,
-              onPressed: _openAgent,
-              icon: const Icon(Icons.smart_toy_outlined),
+            Flexible(child: _storageIndicator()),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: 'Day templates',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _openTemplates,
+                  icon: const Icon(Icons.calendar_month_outlined),
+                ),
+                IconButton(
+                  tooltip: 'Plan vs actual',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _openStats,
+                  icon: const Icon(Icons.insights),
+                ),
+                IconButton(
+                  tooltip: 'Review',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _openReview,
+                  icon: const Icon(Icons.summarize_outlined),
+                ),
+                if (widget.calendarService != null)
+                  IconButton(
+                    tooltip: 'Calendars',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: _openCalendars,
+                    icon: const Icon(Icons.event_outlined),
+                  ),
+                IconButton(
+                  tooltip: 'Agent',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _openAgent,
+                  icon: const Icon(Icons.smart_toy_outlined),
+                ),
+              ],
             ),
           ],
         ),

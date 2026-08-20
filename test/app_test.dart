@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:day_dial/data/persisted_day_repository.dart';
+import 'package:day_dial/data/repository_factory.dart';
 import 'package:day_dial/main.dart';
 import 'package:day_dial/painters/dial_painter.dart';
 import 'package:day_dial/screens/templates_screen.dart';
@@ -453,6 +455,50 @@ void main() {
       );
       expect(toggle.selected, {DialMode.compass});
 
+      await tester.pumpWidget(const SizedBox());
+    });
+  });
+
+  group('the storage indicator says where the day lives', () {
+    // The app picks a store at startup (SPEC §8) and the choice is otherwise
+    // invisible — "synced to the desktop" and "kept in this browser" are
+    // different days, and a browser blocking storage means none of it is saved.
+    testWidgets('a browser-local day says so', (tester) async {
+      final repo = PersistedDayRepository(
+        cache: InMemoryDayRepository(profiles: [testProfile()]),
+        save: (_) async {},
+      );
+      await tester.pumpWidget(DayDialApp(repository: repo));
+      await tester.pump();
+
+      expect(find.text(StorageMode.browser.label), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('a session-only day is called out as unsaved', (tester) async {
+      // The in-memory store is only reached when storage is blocked.
+      await tester.pumpWidget(DayDialApp(repository: testRepository()));
+      await tester.pump();
+
+      expect(find.text(StorageMode.ephemeral.label), findsOneWidget);
+      final label = tester.widget<Text>(find.text(StorageMode.ephemeral.label));
+      expect(
+        label.style!.color,
+        const Color(0xFFB5624F),
+        reason: 'losing work should not look like every other status',
+      );
+
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('tapping it explains what that means', (tester) async {
+      await tester.pumpWidget(DayDialApp(repository: testRepository()));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('storage-indicator')));
+      await tester.pump();
+
+      expect(find.text(StorageMode.ephemeral.detail), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     });
   });

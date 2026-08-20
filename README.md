@@ -12,7 +12,11 @@ working conventions in this repo.
 
 - **The dial:** a 24-hour ring of segments. *Compass mode* rotates the day so
   “now” stays pinned at the top (labels counter-rotate to stay upright);
-  *clock mode* keeps midnight at top with a sweeping hand.
+  *clock mode* keeps midnight at top with a sweeping hand. Which one you use
+  is remembered between launches.
+- **Drag a boundary** where two blocks meet to rescale both — one grows, the
+  other gives up the same minutes, and the ring always sums to a day. Illegal
+  moves (past a neighbour, under the 15-minute minimum) simply don't take.
 - **Plan vs. actual:** segments are the plan; append-only time logs are the
   truth. Variance per category over day/week/month, plus a periodic review
   screen with streaks and calendar load.
@@ -23,9 +27,13 @@ working conventions in this repo.
 - **MCP server** embedded in the desktop app (loopback by default,
   consent-gated writes, destructive tools flagged) so Claude Desktop/Code and
   other agents can operate on your day.
-- **Web companion** that syncs to the desktop hub on localhost and falls back
-  to a local in-browser day when no hub is reachable. Fully self-contained
-  bundle — no CDN fetches (fonts and CanvasKit ship with the build).
+- **Web companion** that syncs to the desktop hub on localhost and otherwise
+  keeps the day — and your calendar subscriptions — locally in IndexedDB, so
+  closing the tab doesn't lose anything. Fully self-contained bundle — no CDN
+  fetches (fonts and CanvasKit ship with the build).
+- **Desktop layout:** wide windows put the dial beside the tray, editor and
+  habits, each scrolling on its own, so reaching the tray never pushes the
+  dial off screen. Narrow windows and phones keep a single stacked column.
 
 ## Platforms
 
@@ -34,7 +42,7 @@ working conventions in this repo.
 | Linux | Full desktop hub (SQLite + MCP + web-companion server). Build-verified. |
 | Windows | Full desktop hub. Runner scaffolded and configured; build on a Windows machine. |
 | macOS | Full desktop hub. Sandbox entitlements for loopback server + calendar fetch included; build on a Mac. |
-| Web | Companion client (syncs to a desktop hub; local fallback otherwise). Build-verified. |
+| Web | Companion client (syncs to a desktop hub; durable IndexedDB day otherwise). Build-verified. |
 | Android | Local store + MCP client (no embedded server in v1). Runner scaffolded and configured; build with the Android SDK. |
 | iOS | Local store + MCP client (no embedded server in v1). Runner scaffolded and configured; build on a Mac. |
 

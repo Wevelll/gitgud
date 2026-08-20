@@ -155,6 +155,14 @@ class DialPainter extends CustomPainter {
   static const _numR = 176.0;
   static const _plate = _ro + 12.0;
 
+  /// The dial paints text through [TextPainter], which does not inherit the
+  /// app's theme, so a bare [TextStyle] would render the ring's labels in the
+  /// platform default font while the rest of the UI uses the bundled Roboto.
+  /// Naming it here keeps the dial typographically part of the app — and keeps
+  /// the web build off a CDN font (golden rule #6), since Roboto ships with it.
+  static TextStyle _withAppFont(TextStyle style) =>
+      style.fontFamily == null ? style.copyWith(fontFamily: 'Roboto') : style;
+
   double _timeAngleDeg(int min) => min / 1440.0 * 360.0;
   static double _rad(double deg) => deg * math.pi / 180.0;
 
@@ -488,7 +496,7 @@ class DialPainter extends CustomPainter {
     TextStyle style,
   ) {
     final tp = TextPainter(
-      text: TextSpan(text: text, style: style),
+      text: TextSpan(text: text, style: _withAppFont(style)),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.center,
     )..layout();
@@ -563,7 +571,7 @@ class DialPainter extends CustomPainter {
     TextStyle style,
   ) {
     final tp = TextPainter(
-      text: TextSpan(text: text, style: style),
+      text: TextSpan(text: text, style: _withAppFont(style)),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.center,
     )..layout();

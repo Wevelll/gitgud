@@ -502,37 +502,115 @@ class _DialScreenState extends State<DialScreen> {
         child: const Icon(Icons.timer_outlined),
       ),
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _header(cur),
-                  const SizedBox(height: 16),
-                  _dialCard(),
-                  const SizedBox(height: 12),
-                  _trackingCard(cur),
-                  const SizedBox(height: 16),
-                  _liveControls(),
-                  const SizedBox(height: 12),
-                  _scopeBar(),
-                  const SizedBox(height: 12),
-                  _selectedEditor(),
-                  const SizedBox(height: 12),
-                  _tray(),
-                  const SizedBox(height: 12),
-                  _habitsSection(),
-                ],
-              ),
-            ),
-          ),
+        child: LayoutBuilder(
+          builder: (context, constraints) => constraints.maxWidth >= _wideWidth
+              ? _wideLayout(cur)
+              : _narrowLayout(cur),
         ),
       ),
     );
   }
+
+  /// Above this width the day splits into two columns. Chosen so the dial and
+  /// the panels each get a comfortable column rather than fighting: below it,
+  /// two columns would be narrower than the single one they replace.
+  static const double _wideWidth = 900;
+
+  /// Phone, or a desktop window dragged narrow: one scrolling column.
+  Widget _narrowLayout(Segment cur) => Center(
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 460),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _header(cur),
+            const SizedBox(height: 16),
+            _dialCard(),
+            const SizedBox(height: 12),
+            _trackingCard(cur),
+            const SizedBox(height: 16),
+            _liveControls(),
+            const SizedBox(height: 12),
+            _scopeBar(),
+            const SizedBox(height: 12),
+            _selectedEditor(),
+            const SizedBox(height: 12),
+            _tray(),
+            const SizedBox(height: 12),
+            _habitsSection(),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  /// Desktop: the dial on the left at a size worth glancing at, the things you
+  /// act on down the right. Both columns scroll independently, so reaching the
+  /// tray never pushes the dial off screen — the whole point of a dial you can
+  /// read at a glance (SPEC §2.3).
+  Widget _wideLayout(Segment cur) => Center(
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 1100),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _header(cur),
+            const SizedBox(height: 16),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Capped: the dial is square, so an uncapped one
+                          // grows with the column and shoves the tracking
+                          // controls below the fold on a short window.
+                          Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 440),
+                              child: _dialCard(),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          _trackingCard(cur),
+                          const SizedBox(height: 16),
+                          _liveControls(),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _scopeBar(),
+                          const SizedBox(height: 12),
+                          _selectedEditor(),
+                          const SizedBox(height: 12),
+                          _tray(),
+                          const SizedBox(height: 12),
+                          _habitsSection(),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 
   void _openStats() {
     Navigator.of(

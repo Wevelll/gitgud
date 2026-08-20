@@ -43,11 +43,15 @@ Future<DayRepository> openPlatformRepository() async {
 /// edit.
 Future<DayRepository> openLocalRepository() async {
   try {
-    final store = await BrowserSnapshotStore.open();
-    final saved = await store.read();
+    final store = await BrowserJsonStore.open();
+    final json = await store.read(BrowserJsonStore.snapshotKey);
+    final saved = json == null
+        ? null
+        : DaySnapshot.fromJson((json as Map).cast<String, Object?>());
     final repo = PersistedDayRepository(
       cache: _cacheFor(saved),
-      save: store.write,
+      save: (snapshot) =>
+          store.write(BrowserJsonStore.snapshotKey, snapshot.toJson()),
     );
     // Only a genuinely fresh store gets the demo tasks/habits — re-seeding a
     // restored one would resurrect anything the user deleted.

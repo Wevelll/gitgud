@@ -1,3 +1,10 @@
+@Timeout(Duration(minutes: 2))
+library;
+
+// Real HTTP over loopback, not a unit test: the default 30-second budget is
+// tight when the whole suite runs its isolates in parallel, and a timeout here
+// says nothing about the code under test.
+
 import 'dart:convert';
 import 'dart:io';
 

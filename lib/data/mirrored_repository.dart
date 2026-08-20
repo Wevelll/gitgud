@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:day_dial_core/day_dial_core.dart';
 
 /// A [DayRepository] that answers every read from an in-memory cache and, after
@@ -7,13 +9,18 @@ import 'package:day_dial_core/day_dial_core.dart';
 ///
 /// The pattern is the same in both cases: apply the edit to the cache (which is
 /// `core`'s [InMemoryDayRepository], so all the real logic stays there), then
-/// call [onMutated]. Subclasses supply only that one method; this class exists
+/// mirror the new snapshot. Subclasses supply only [mirror]; this class exists
 /// so the ~40 forwarding members aren't written twice.
 ///
 /// The mirror is deliberately **whole-snapshot**: an edit is cheap and the
 /// state is small (a day's ring plus some tasks), so there's no diffing to get
 /// wrong. It is also a **single-writer** model — see [SyncedDayRepository] on
 /// why concurrent-edit merging (CRDT) is parked.
+///
+/// Writes are **coalesced, latest-wins**: while one is in flight, further edits
+/// mark the state dirty rather than queueing, and one more runs when the first
+/// finishes. Dragging a boundary therefore costs two writes rather than fifty —
+/// which matters as much for the hub (fifty HTTP round trips) as for IndexedDB.
 abstract class MirroredDayRepository implements DayRepository {
   MirroredDayRepository(this.cache);
 
@@ -21,9 +28,43 @@ abstract class MirroredDayRepository implements DayRepository {
   /// serialize a snapshot) but should not mutate it directly.
   final InMemoryDayRepository cache;
 
-  /// Called after every mutation, with the cache already updated. Must not
-  /// throw: a failed mirror leaves the cache intact so the UI keeps working.
-  void onMutated();
+  /// Writes [snapshot] to wherever this repository mirrors. May throw — a
+  /// failure is recorded in [lastError] and otherwise swallowed, because losing
+  /// the mirror must never take the UI down with it.
+  Future<void> mirror(DaySnapshot snapshot);
+
+  Future<void>? _draining;
+  bool _dirty = false;
+  Object? _lastError;
+
+  /// The most recent mirror failure, if the last attempt failed; null once one
+  /// succeeds. Lets a caller surface "changes aren't being saved".
+  Object? get lastError => _lastError;
+
+  /// Completes when every pending edit has been mirrored — what tests await,
+  /// and what a "flush before close" would await.
+  Future<void> get idle => _draining ?? Future<void>.value();
+
+  void onMutated() {
+    _dirty = true;
+    _draining ??= _drain();
+  }
+
+  Future<void> _drain() async {
+    try {
+      while (_dirty) {
+        _dirty = false;
+        try {
+          await mirror(cache.snapshot());
+          _lastError = null;
+        } catch (e) {
+          _lastError = e;
+        }
+      }
+    } finally {
+      _draining = null;
+    }
+  }
 
   // ---- reads (straight from the cache) --------------------------------------
 

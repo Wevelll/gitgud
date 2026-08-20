@@ -2,12 +2,11 @@ import 'package:day_dial_core/day_dial_core.dart';
 
 // Platform-split persistence for the calendar *source list* (SPEC §12.1): the
 // subscriptions themselves are small config, distinct from the disposable event
-// cache. Desktop writes a JSON file; web is session-only for now (a no-op store)
-// pending an IndexedDB / hub-sync path. Mirrors the notifier / exporter
-// conditional-import idiom.
+// cache. Desktop writes a JSON file; web keeps a JSON record in IndexedDB
+// alongside the day. Mirrors the notifier / exporter conditional-import idiom.
 //
 // Note: the convention-correct end state is a `calendar_sources` row set in the
-// store layer (SPEC §5); this file store is an interim, desktop-durable step.
+// store layer (SPEC §5); these are an interim, per-platform durable step.
 import 'source_store_io.dart'
     if (dart.library.js_interop) 'source_store_web.dart';
 

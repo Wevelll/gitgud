@@ -50,17 +50,22 @@ class SyncedDayRepository extends MirroredDayRepository {
   static Map<String, String> _auth(String? token) =>
       token == null ? const {} : {'authorization': 'Bearer $token'};
 
-  /// Pushes the current cache state to the hub. Best-effort: a failed push
-  /// (hub offline) leaves the local cache intact so the UI keeps working.
+  /// Releases the HTTP client. The app holds one of these for its lifetime, but
+  /// a keep-alive socket left open will hold a test's isolate alive well past
+  /// the last assertion.
+  void close() => _client.close();
+
+  /// Pushes state to the hub. A failed push (hub offline) is recorded in
+  /// `lastError` and leaves the local cache intact, so the UI keeps working.
   @override
-  void onMutated() {
-    final body = jsonEncode({'state': cache.snapshot().toJson()});
-    _client
-        .put(
-          hub.replace(path: '/state'),
-          headers: {..._auth(token), 'content-type': 'application/json'},
-          body: body,
-        )
-        .ignore();
+  Future<void> mirror(DaySnapshot snapshot) async {
+    final response = await _client.put(
+      hub.replace(path: '/state'),
+      headers: {..._auth(token), 'content-type': 'application/json'},
+      body: jsonEncode({'state': snapshot.toJson()}),
+    );
+    if (response.statusCode != 200) {
+      throw StateError('Hub PUT /state returned ${response.statusCode}');
+    }
   }
 }

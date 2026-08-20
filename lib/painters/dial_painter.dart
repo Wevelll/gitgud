@@ -23,6 +23,72 @@ Color parseHexColor(String hex) {
   return Color(int.parse(h, radix: 16));
 }
 
+/// Where things sit on the dial, and how a point on screen maps back to a
+/// minute of the day.
+///
+/// The painter draws with these radii and the gesture layer hit-tests against
+/// them, so they live in one place — a handle you can see but not grab (or the
+/// reverse) is exactly the bug this prevents. Radii are in the prototype's
+/// 360×360 reference frame and scaled by [scale] at paint time.
+///
+/// This is *pixel* geometry only. What a minute then means for the day —
+/// which boundary was grabbed, where it may move — is `core`'s job
+/// (`RingHit`, `RingEdit`), per golden rule #1.
+class DialGeometry {
+  const DialGeometry({
+    required this.size,
+    required this.mode,
+    required this.nowMin,
+  });
+
+  /// The square the dial is painted into.
+  final Size size;
+  final DialMode mode;
+  final int nowMin;
+
+  /// Reference radii (the prototype's 360×360 frame).
+  static const double ringOuter = 150.0;
+  static const double ringInner = 96.0;
+  static const double labelRadius = 123.0;
+  static const double hubRadius = 82.0;
+  static const double referenceSide = 360.0;
+
+  Offset get center => size.center(Offset.zero);
+
+  /// Reference-frame → paint-frame scale factor.
+  double get scale => size.shortestSide / referenceSide;
+
+  /// How far the day-disc is rotated: in compass mode it turns backwards by
+  /// the current time so *now* stays pinned to the fixed top marker; in clock
+  /// mode the disc is still (SPEC §2.2).
+  double get discRotationDeg =>
+      mode == DialMode.compass ? -(nowMin / 1440.0 * 360.0) : 0.0;
+
+  /// The paint-frame point at reference radius [r], [aDeg] clockwise from 12
+  /// o'clock, in **disc** coordinates (before the disc rotation is applied).
+  Offset pointAt(double r, double aDeg) {
+    final rad = aDeg * math.pi / 180.0;
+    return center +
+        Offset(r * scale * math.sin(rad), -r * scale * math.cos(rad));
+  }
+
+  /// The minute of the day under [local] (a position in the painted box),
+  /// undoing the disc rotation so the same math serves both modes.
+  int minuteAt(Offset local) {
+    final v = local - center;
+    final screenDeg = (math.atan2(v.dx, -v.dy) * 180 / math.pi) % 360;
+    final discDeg = (screenDeg - discRotationDeg) % 360;
+    return ((discDeg / 360.0) * 1440).round() % 1440;
+  }
+
+  /// Whether [local] falls in the band where the wedges are drawn — with a
+  /// little slop, since a fingertip is bigger than a ring is thick.
+  bool isOnRing(Offset local, {double slop = 16}) {
+    final r = (local - center).distance / scale;
+    return r >= ringInner - slop && r <= ringOuter + slop;
+  }
+}
+
 /// Renders the 24-hour dial from a [DayProfile] — both compass and clock modes.
 /// Geometry is ported from the React prototype (`dial_example.jsx`) and scaled
 /// to the paint [Size] so it stays crisp at any resolution.
@@ -39,6 +105,8 @@ class DialPainter extends CustomPainter {
     this.actuals = const [],
     this.overlay = const [],
     this.subBlocks = const SubBlockPlan.empty(),
+    this.showHandles = false,
+    this.draggingBoundaryId,
   });
 
   final DayProfile profile;
@@ -61,15 +129,24 @@ class DialPainter extends CustomPainter {
   /// selected one (SPEC §2: coarse from a distance, detailed when it comes by).
   final SubBlockPlan subBlocks;
 
+  /// Whether to mark the shared boundaries as grabbable (SPEC §2.4). Off for a
+  /// read-only dial, so a glanceable snapshot isn't cluttered with affordances
+  /// that do nothing.
+  final bool showHandles;
+
+  /// The segment whose end boundary is being dragged right now, named the same
+  /// way an edit is: by the block that *ends* there.
+  final String? draggingBoundaryId;
+
   /// Whether [seg] should show its sub-blocks: it's active or tapped-selected.
   bool _revealed(Segment seg) =>
       seg.id == selectedSegmentId || seg.contains(nowMin);
 
   // Reference radii (prototype's 360×360 frame); scaled by `f` at paint time.
-  static const _ro = 150.0; // segment outer
-  static const _ri = 96.0; // segment inner
-  static const _rl = 123.0; // label radius
-  static const _hub = 82.0; // center hub
+  static const _ro = DialGeometry.ringOuter; // segment outer
+  static const _ri = DialGeometry.ringInner; // segment inner
+  static const _rl = DialGeometry.labelRadius; // label radius
+  static const _hub = DialGeometry.hubRadius; // center hub
   static const _actIn = 84.0; // actual-ring inner
   static const _actOut = 93.0; // actual-ring outer
   static const _tickIn = 152.0;
@@ -115,6 +192,7 @@ class DialPainter extends CustomPainter {
     _drawOverlay(canvas, f, pt);
     _drawLabels(canvas, thetaDeg, pt);
     _drawNumerals(canvas, thetaDeg, pt);
+    _drawBoundaryHandles(canvas, f, thetaDeg, pt);
 
     canvas.restore();
 
@@ -265,6 +343,57 @@ class DialPainter extends CustomPainter {
           ..style = PaintingStyle.fill
           ..color = parseHexColor(ev.colorHex).withValues(alpha: 0.92),
       );
+    }
+  }
+
+  /// Marks each shared boundary as something you can grab and drag (SPEC §2.4).
+  ///
+  /// Drawn inside the rotating disc so a handle stays on its boundary in
+  /// compass mode; the time readout on the one being dragged is counter-rotated
+  /// like every other label (golden rule #9).
+  void _drawBoundaryHandles(
+    Canvas canvas,
+    double f,
+    double thetaDeg,
+    Offset Function(double, double) pt,
+  ) {
+    if (!showHandles) return;
+    for (final seg in profile.segments) {
+      final dragging = seg.id == draggingBoundaryId;
+      final a = _timeAngleDeg(seg.endMin);
+      canvas.drawLine(
+        pt(_ri - 2, a),
+        pt(_ro + 2, a),
+        Paint()
+          ..strokeWidth = dragging ? 3 : 1.5
+          ..strokeCap = StrokeCap.round
+          ..color = dragging
+              ? palette.marker
+              : palette.marker.withValues(alpha: 0.35),
+      );
+      // A knob, so the boundary reads as a grip rather than a hairline.
+      canvas.drawCircle(
+        pt((_ri + _ro) / 2, a),
+        (dragging ? 5.5 : 3.5) * f,
+        Paint()
+          ..color = dragging
+              ? palette.marker
+              : palette.marker.withValues(alpha: 0.45),
+      );
+      if (dragging) {
+        _drawUprightText(
+          canvas,
+          pt(_ro + 22, a),
+          thetaDeg,
+          formatMinuteOfDay(seg.endMin),
+          TextStyle(
+            color: palette.label,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        );
+      }
     }
   }
 
@@ -483,7 +612,9 @@ class DialPainter extends CustomPainter {
       old.palette != palette ||
       old.subBlocks != subBlocks ||
       !listEquals(old.actuals, actuals) ||
-      !listEquals(old.overlay, overlay);
+      !listEquals(old.overlay, overlay) ||
+      old.showHandles != showHandles ||
+      old.draggingBoundaryId != draggingBoundaryId;
 }
 
 /// A logged actual placed on the dial: a `[startMin, endMin)` arc (minutes since

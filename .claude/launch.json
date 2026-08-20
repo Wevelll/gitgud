@@ -1,0 +1,15 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "wsl",
+      "runtimeArgs": [
+        "zsh",
+        "-ic",
+        "cd ~/gitgud/build/web && python3 -m http.server 8123 --bind 0.0.0.0"
+      ],
+      "port": 8123
+    }
+  ]
+}

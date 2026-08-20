@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+
+import 'package:day_dial_core/day_dial_core.dart';
 import 'package:day_dial/painters/dial_painter.dart';
 import 'package:day_dial/widgets/dial_view.dart';
 import 'package:flutter/material.dart';
@@ -7,10 +10,20 @@ import 'support.dart';
 
 void main() {
   Widget host(Widget child) => MaterialApp(
+    debugShowCheckedModeBanner: false,
     home: Scaffold(
+      backgroundColor: const Color(0xFF0A0D18),
       body: Center(child: SizedBox(width: 360, height: 360, child: child)),
     ),
   );
+
+  /// A point on the ring at [minute], for a dial in **clock** mode (no disc
+  /// rotation, so the mapping is fixed). [radius] sits between the wedge
+  /// radii, 96..150.
+  Offset ringPoint(int minute, {double radius = 120}) {
+    final rad = minute / 1440.0 * 2 * math.pi;
+    return Offset(radius * math.sin(rad), -radius * math.cos(rad));
+  }
 
   testWidgets('tapping the ring selects the segment under the tap (clock mode)', (
     tester,
@@ -105,4 +118,157 @@ void main() {
       isFalse,
     );
   });
+
+  group('dragging a shared boundary (SPEC §2.4)', () {
+    testWidgets('reports the block that ends there and its new end time', (
+      tester,
+    ) async {
+      final moves = <(String, int)>[];
+      var ended = 0;
+      await tester.pumpWidget(
+        host(
+          DialView(
+            profile: testProfile(),
+            nowMin: 450,
+            mode: DialMode.clock,
+            onBoundaryDragged: (id, endMin) => moves.add((id, endMin)),
+            onBoundaryDragEnd: () => ended++,
+          ),
+        ),
+      );
+
+      // Morning ends at 09:00. Grab that boundary and pull it out to 10:00.
+      final center = tester.getCenter(find.byType(DialView));
+      await tester.dragFrom(
+        center + ringPoint(540),
+        ringPoint(600) - ringPoint(540),
+      );
+      await tester.pumpAndSettle();
+
+      expect(moves.last, ('morning', 600));
+      expect(ended, 1);
+    });
+
+    testWidgets('a drag that starts away from any boundary is not a grab', (
+      tester,
+    ) async {
+      final moves = <(String, int)>[];
+      await tester.pumpWidget(
+        host(
+          DialView(
+            profile: testProfile(),
+            nowMin: 450,
+            mode: DialMode.clock,
+            onBoundaryDragged: (id, endMin) => moves.add((id, endMin)),
+          ),
+        ),
+      );
+
+      // 11:00 is deep inside Deep work (09:00–13:00), far from any boundary.
+      final center = tester.getCenter(find.byType(DialView));
+      await tester.dragFrom(
+        center + ringPoint(660),
+        ringPoint(700) - ringPoint(660),
+      );
+      await tester.pumpAndSettle();
+
+      expect(moves, isEmpty);
+    });
+
+    testWidgets('a drag over the hub is not a grab either', (tester) async {
+      final moves = <(String, int)>[];
+      await tester.pumpWidget(
+        host(
+          DialView(
+            profile: testProfile(),
+            nowMin: 450,
+            mode: DialMode.clock,
+            onBoundaryDragged: (id, endMin) => moves.add((id, endMin)),
+          ),
+        ),
+      );
+
+      // Same angle as the 09:00 boundary, but at hub radius — not the ring.
+      final center = tester.getCenter(find.byType(DialView));
+      await tester.dragFrom(
+        center + ringPoint(540, radius: 30),
+        const Offset(0, 40),
+      );
+      await tester.pumpAndSettle();
+
+      expect(moves, isEmpty);
+    });
+
+    testWidgets('a read-only dial has no drag handles and ignores drags', (
+      tester,
+    ) async {
+      // No onBoundaryDragged → the dial is a pure render (what the goldens
+      // pump), so nothing to grab.
+      await tester.pumpWidget(
+        host(
+          DialView(profile: testProfile(), nowMin: 450, mode: DialMode.clock),
+        ),
+      );
+      expect(_painterOf(tester).showHandles, isFalse);
+
+      final center = tester.getCenter(find.byType(DialView));
+      await tester.dragFrom(
+        center + ringPoint(540),
+        ringPoint(600) - ringPoint(540),
+      );
+      await tester.pumpAndSettle(); // no callbacks wired: must not throw
+    });
+
+    testWidgets('the grabbed boundary is highlighted while dragging', (
+      tester,
+    ) async {
+      // A host that actually applies each move, so the capture shows what the
+      // user sees: the wedge following the finger, not a static ring.
+      var profile = testProfile();
+      await tester.pumpWidget(
+        host(
+          StatefulBuilder(
+            builder: (context, setState) => DialView(
+              profile: profile,
+              nowMin: 450,
+              mode: DialMode.clock,
+              onBoundaryDragged: (id, endMin) => setState(
+                () => profile = profile.updateBlock(id, endMin: endMin),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final center = tester.getCenter(find.byType(DialView));
+      final gesture = await tester.startGesture(center + ringPoint(540));
+      await gesture.moveTo(center + ringPoint(600));
+      await tester.pump();
+
+      // Held mid-drag: Morning now runs to 10:00, its handle is called out,
+      // and Deep work has given up the hour. Released after the capture.
+      expect(_painterOf(tester).draggingBoundaryId, 'morning');
+      expect(profile.segments.firstWhere((s) => s.id == 'morning').endMin, 600);
+      await expectLater(
+        find.byType(DialView),
+        matchesGoldenFile('goldens/boundary_drag.png'),
+      );
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+  });
 }
+
+/// The [DialPainter] the dial is currently painting with — how the tests assert
+/// on render state (handles, the grabbed boundary) without pixel-peeping.
+DialPainter _painterOf(WidgetTester tester) =>
+    tester
+            .widget<CustomPaint>(
+              find.descendant(
+                of: find.byType(DialView),
+                matching: find.byType(CustomPaint),
+              ),
+            )
+            .painter!
+        as DialPainter;

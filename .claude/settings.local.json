@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sudo apt-get update)",
+      "Bash(sudo apt-get upgrade -y)",
+      "Bash(sudo apt-get install -y build-essential clang cmake git curl file pkg-config unzip zip)",
+      "Bash(apt-get update *)",
+      "Bash(apt-get upgrade *)",
+      "Bash(apt-get install *)",
+      "Bash(apt-get --version)",
+      "Bash(wsl apt-get *)",
+      "Bash(wsl bash *)",
+      "Bash(wsl ps *)",
+      "Bash(wsl test *)",
+      "Bash(wsl flutter *)",
+      "Bash(wsl which *)",
+      "Bash(MSYS_NO_PATHCONV=1 wsl bash \"/mnt/c/Users/dr/AppData/Local/Temp/claude/--wsl-localhost-ubuntu-24-04-home-drdrdr-gitgud/ab1adf73-a64a-4306-bb6e-de841bff494d/scratchpad/dedupe_zshrc.sh\")",
+      "Bash(wsl zsh *)",
+      "mcp__visualize__read_me",
+      "Bash(wsl bash -c 'cd '\\\\''/mnt/c/Users/dr/.claude/projects/--wsl-localhost-ubuntu-24-04-home-drdrdr-gitgud/ab1adf73-a64a-4306-bb6e-de841bff494d/tool-results'\\\\'' && python3 -c \" *)",
+      "mcp__visualize__show_widget"
+    ]
+  }
+}

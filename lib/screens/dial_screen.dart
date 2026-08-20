@@ -133,8 +133,32 @@ class _DialScreenState extends State<DialScreen> {
     } on InvalidProfileException {
       return;
     }
-    setState(() => _profile = _repo.activeProfile());
+    setState(() {
+      _profile = _repo.activeProfile();
+      _subBlocks = _repo.subBlocks(); // the resize may have re-fitted detail
+    });
     widget.onDayChanged?.call();
+  }
+
+  /// Applies a boundary drag: [segmentId] is the block that ends there, so the
+  /// move is the same edit the ± buttons make. An illegal position (past a
+  /// neighbor, or breaching the 15-min minimum) is rejected by core and simply
+  /// leaves the boundary where it was — the drag keeps going, so the user can
+  /// pull back without lifting their finger.
+  ///
+  /// Notifications are rescheduled once on drag end, not on every frame.
+  void _dragBoundary(String segmentId, int endMin) {
+    try {
+      _repo.updateBlock(segmentId, endMin: endMin);
+    } on InvalidProfileException {
+      return;
+    }
+    setState(() {
+      _profile = _repo.activeProfile();
+      // A resized block re-fits its detail (core clips or drops sub-blocks the
+      // new ring no longer holds), so re-read the overlay.
+      _subBlocks = _repo.subBlocks();
+    });
   }
 
   void _toggleTask(String taskId, bool currentlyDone) {
@@ -669,6 +693,8 @@ class _DialScreenState extends State<DialScreen> {
             overlay: _overlayArcs(),
             subBlocks: _subBlocks,
             onSegmentTapped: (id) => setState(() => _selectedId = id),
+            onBoundaryDragged: _dragBoundary,
+            onBoundaryDragEnd: () => widget.onDayChanged?.call(),
           ),
           _allDayBar(),
         ],

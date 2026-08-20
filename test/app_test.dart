@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:day_dial/main.dart';
 import 'package:day_dial/screens/templates_screen.dart';
 import 'package:day_dial/widgets/dial_view.dart';
@@ -23,6 +25,40 @@ void main() {
     await tester.pump();
 
     // Dispose the screen so its periodic timer doesn't leak past the test.
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('dragging a boundary on the dial resizes and persists', (
+    tester,
+  ) async {
+    final repo = testRepository();
+    await tester.pumpWidget(DayDialApp(repository: repo));
+    await tester.pump();
+
+    // Clock mode pins midnight to the top, so a screen position maps to a
+    // known minute regardless of what time the test happens to run at.
+    await tester.tap(find.text('Clock'));
+    await tester.pump();
+
+    final rect = tester.getRect(find.byType(DialView));
+    // A point on the ring at [minute], scaled to however big the dial laid out.
+    Offset ringPoint(int minute) {
+      final rad = minute / 1440.0 * 2 * math.pi;
+      final r = rect.shortestSide / 360.0 * 120; // mid-wedge reference radius
+      return rect.center + Offset(r * math.sin(rad), -r * math.cos(rad));
+    }
+
+    // Morning ends at 09:00 and Deep work runs 09:00-13:00. Pull the shared
+    // boundary out to 10:00: Morning grows by an hour, Deep work gives it up.
+    await tester.dragFrom(ringPoint(540), ringPoint(600) - ringPoint(540));
+    await tester.pump();
+
+    final segments = repo.activeProfile().segments;
+    expect(segments.firstWhere((s) => s.id == 'morning').endMin, 600);
+    expect(segments.firstWhere((s) => s.id == 'deep').startMin, 600);
+    // Still a gapless ring summing to a day (golden rule #8).
+    expect(segments.fold<int>(0, (a, s) => a + s.durationMin), 1440);
+
     await tester.pumpWidget(const SizedBox());
   });
 

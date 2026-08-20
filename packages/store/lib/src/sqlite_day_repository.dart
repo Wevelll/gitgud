@@ -29,7 +29,7 @@ class SqliteDayRepository implements DayRepository {
     final db = path == null ? sqlite3.openInMemory() : sqlite3.open(path);
     final repo = SqliteDayRepository._(
       db,
-      idFactory ?? _defaultIds(),
+      idFactory ?? uniqueIdFactory(),
       clock ?? DateTime.now,
     );
     repo._migrate();
@@ -39,15 +39,6 @@ class SqliteDayRepository implements DayRepository {
 
   /// Releases the database handle.
   void close() => _db.close();
-
-  /// Default id generator: a per-open time base plus a counter, so ids stay
-  /// unique **across restarts** (a plain 1,2,3 sequence would collide with ids
-  /// already persisted from a previous run). Tests inject a deterministic one.
-  static String Function() _defaultIds() {
-    var n = 0;
-    final base = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
-    return () => '$base-${n++}';
-  }
 
   void _migrate() {
     _db.execute('PRAGMA foreign_keys = ON;');

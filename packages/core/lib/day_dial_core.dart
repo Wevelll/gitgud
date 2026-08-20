@@ -27,4 +27,5 @@ export 'src/calendar/calendar_recurrence.dart';
 export 'src/calendar/calendar_overlay.dart';
 export 'src/calendar/calendar_provider.dart';
 export 'src/repository/day_repository.dart';
+export 'src/repository/id_factory.dart';
 export 'src/repository/day_snapshot.dart';

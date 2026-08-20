@@ -330,4 +330,85 @@ void main() {
 
     await tester.pumpWidget(const SizedBox());
   });
+
+  group('midnight rollover', () {
+    // A planner gets left open overnight. Everything keyed to "today" has to
+    // move on when the clock passes midnight — otherwise the app keeps
+    // operating on yesterday.
+    const beforeMidnight = Duration(hours: 23, minutes: 59, seconds: 30);
+    const afterMidnight = Duration(minutes: 0, seconds: 30);
+    final thursday = DateTime(2026, 8, 20);
+    final friday = DateTime(2026, 8, 21);
+
+    testWidgets('ticking a task after midnight completes it for the new date', (
+      tester,
+    ) async {
+      final repo = testRepository();
+      var now = thursday.add(beforeMidnight);
+      await tester.pumpWidget(DayDialApp(repository: repo, clock: () => now));
+      await tester.pump();
+
+      now = friday.add(afterMidnight);
+      await tester.pump(const Duration(seconds: 11)); // one clock tick
+
+      await tester.ensureVisible(find.text('Take meds'));
+      await tester.pump();
+      await tester.tap(find.text('Take meds'));
+      await tester.pump();
+
+      expect(repo.completions(), hasLength(1));
+      expect(repo.completions().single.date, const CivilDate(2026, 8, 21));
+
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('the ring follows the new date to its weekday template', (
+      tester,
+    ) async {
+      final repo = testRepository();
+      // A Friday-only template. Thursday resolves to the default, Friday to
+      // this one, so crossing midnight has to swap the ring.
+      repo.addProfile(
+        DayProfile.fromDurations(
+          id: 'friday',
+          name: 'Friday',
+          activeDaysMask: 1 << 4, // Monday = bit 0, so Friday = bit 4
+          segmentIds: const ['rest', 'play'],
+          blocks: const [
+            (name: 'Rest', colorHex: '#4B4FA6', minutes: 600),
+            (name: 'Play', colorHex: '#6FA85B', minutes: 840),
+          ],
+        ),
+      );
+
+      var now = thursday.add(beforeMidnight);
+      await tester.pumpWidget(DayDialApp(repository: repo, clock: () => now));
+      await tester.pump();
+      expect(repo.activeProfile().id, isNot('friday'));
+
+      now = friday.add(afterMidnight);
+      await tester.pump(const Duration(seconds: 11));
+
+      expect(repo.activeProfile().id, 'friday');
+      expect(find.text('FRIDAY'), findsOneWidget); // the header follows too
+
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('an ordinary tick within the same day changes nothing', (
+      tester,
+    ) async {
+      final repo = testRepository();
+      var now = thursday.add(const Duration(hours: 9));
+      await tester.pumpWidget(DayDialApp(repository: repo, clock: () => now));
+      await tester.pump();
+      final before = repo.activeProfile().id;
+
+      now = thursday.add(const Duration(hours: 9, minutes: 1));
+      await tester.pump(const Duration(seconds: 11));
+
+      expect(repo.activeProfile().id, before);
+      await tester.pumpWidget(const SizedBox());
+    });
+  });
 }

@@ -26,6 +26,7 @@ class DialScreen extends StatefulWidget {
     required this.agentHost,
     this.calendarService,
     this.onDayChanged,
+    this.clock = DateTime.now,
   });
 
   final DayRepository repository;
@@ -38,6 +39,10 @@ class DialScreen extends StatefulWidget {
   /// Called after an edit that changes the day's block boundaries, so the host
   /// can reschedule transition notifications. Optional (tests omit it).
   final VoidCallback? onDayChanged;
+
+  /// Where "now" comes from. Injectable so tests can step across midnight and
+  /// assert the rollover, the same way `core`'s repositories take a clock.
+  final DateTime Function() clock;
 
   @override
   State<DialScreen> createState() => _DialScreenState();
@@ -56,7 +61,7 @@ class _DialScreenState extends State<DialScreen> {
 
   DialMode _mode = DialMode.compass;
   bool _live = true;
-  int _nowMin = _minuteOfNow();
+  late int _nowMin;
   String? _selectedId;
 
   // In-progress tracking session (null when idle). Lives only in memory; a
@@ -65,19 +70,24 @@ class _DialScreenState extends State<DialScreen> {
   String? _trackCategory;
   String? _trackSegmentId;
 
-  final CivilDate _today = CivilDate.fromDateTime(DateTime.now());
+  /// The date the screen is showing. Not final: a day planner gets left open
+  /// overnight, and at midnight everything keyed to "today" has to move on —
+  /// see [_rollOverIfNewDay].
+  late CivilDate _today;
   Timer? _timer;
 
   bool get _tracking => _trackStartTs != null;
 
-  static int _minuteOfNow() {
-    final n = DateTime.now();
+  int _minuteOfNow() {
+    final n = widget.clock();
     return n.hour * 60 + n.minute;
   }
 
   @override
   void initState() {
     super.initState();
+    _nowMin = _minuteOfNow();
+    _today = CivilDate.fromDateTime(widget.clock());
     _loadFromRepo();
     _startClock();
     _refreshCalendar();
@@ -109,8 +119,32 @@ class _DialScreenState extends State<DialScreen> {
     final period = Duration(seconds: _tracking ? 1 : 10);
     if (!_live && !_tracking) return;
     _timer = Timer.periodic(period, (_) {
-      if (mounted) setState(() => _nowMin = _minuteOfNow());
+      if (!mounted) return;
+      setState(() => _nowMin = _minuteOfNow());
+      _rollOverIfNewDay();
     });
+  }
+
+  /// Moves the screen on to the new date once the clock passes midnight.
+  ///
+  /// Without this, an app left open overnight keeps operating on yesterday:
+  /// ticking a task would complete it for the wrong date, the tray would show
+  /// yesterday's dues, and the ring would stay on yesterday's template even
+  /// though today's is a different one. Cheap to check, so it rides the
+  /// existing tick rather than needing a timer aimed at midnight.
+  void _rollOverIfNewDay() {
+    final now = CivilDate.fromDateTime(widget.clock());
+    if (now == _today) return;
+    _today = now;
+    // The new date may resolve to a different ring — its own override, or the
+    // template assigned to the new weekday.
+    _repo.switchProfile(_repo.profileForDate(now).id);
+    setState(() {
+      _selectedId = null;
+      _loadFromRepo();
+    });
+    _refreshCalendar(); // yesterday's events are not today's
+    widget.onDayChanged?.call(); // re-arm transition notifications
   }
 
   @override
@@ -367,7 +401,7 @@ class _DialScreenState extends State<DialScreen> {
   void _startTracking() {
     final seg = _profile.segmentAt(_minuteOfNow());
     setState(() {
-      _trackStartTs = DateTime.now().toUtc().toIso8601String();
+      _trackStartTs = widget.clock().toUtc().toIso8601String();
       _trackCategory = seg.name;
       _trackSegmentId = seg.id;
       _startClock();
@@ -381,7 +415,7 @@ class _DialScreenState extends State<DialScreen> {
       category: _trackCategory!,
       segmentId: _trackSegmentId,
       startTs: start,
-      endTs: DateTime.now().toUtc().toIso8601String(),
+      endTs: widget.clock().toUtc().toIso8601String(),
     );
     setState(() {
       _trackStartTs = null;
@@ -394,7 +428,7 @@ class _DialScreenState extends State<DialScreen> {
 
   Duration get _elapsed => _trackStartTs == null
       ? Duration.zero
-      : DateTime.now().difference(DateTime.parse(_trackStartTs!));
+      : widget.clock().difference(DateTime.parse(_trackStartTs!));
 
   static String _mmss(Duration d) {
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');

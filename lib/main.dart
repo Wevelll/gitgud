@@ -19,9 +19,17 @@ Future<void> main() async {
 }
 
 class DayDialApp extends StatefulWidget {
-  const DayDialApp({super.key, required this.repository});
+  const DayDialApp({
+    super.key,
+    required this.repository,
+    this.clock = DateTime.now,
+  });
 
   final DayRepository repository;
+
+  /// Where the app reads wall-clock time. Injectable so tests can drive it —
+  /// notably across midnight, where the day view has to roll over.
+  final DateTime Function() clock;
 
   @override
   State<DayDialApp> createState() => _DayDialAppState();
@@ -77,6 +85,7 @@ class _DayDialAppState extends State<DayDialApp> {
         agentHost: _agent,
         calendarService: _calendar,
         onDayChanged: _scheduler.reschedule,
+        clock: widget.clock,
       ),
     );
   }
